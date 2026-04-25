@@ -10,7 +10,7 @@ from celery.result import AsyncResult
 
 from config import get_settings
 from database import init_db, get_db
-from models import MessageIn, TaskResponse, AnalysisResult, LogEntry, AuditLog
+from models import MessageIn, SocialMediaIn, TaskResponse, AnalysisResult, LogEntry, AuditLog
 from worker import celery_app, analyze_task
 from ws import router as ws_router
 from game_room import router as game_router
@@ -108,13 +108,15 @@ def analyze_sync(payload: MessageIn, db: Session = Depends(get_db)):
         player_id=payload.player_id,
         target_id=payload.target_id,
     )
+    # Don't pollute Redis risk history with Fail-Close errors
+    is_fail_close = "Fail-Close" in (result.reason or "")
     push_message(
         game_id=payload.game_id,
         session_id=payload.session_id,
         player_id=payload.player_id,
         target_id=payload.target_id,
         message=payload.message,
-        risk=result.risk,
+        risk=result.risk and not is_fail_close,
         level=result.level.value,
     )
     _save_log(db, str(uuid.uuid4()), payload, result)
@@ -206,6 +208,35 @@ def get_logs(
     if risk_only:
         query = query.filter(AuditLog.risk == True)
     return query.order_by(AuditLog.created_at.desc()).offset(offset).limit(limit).all()
+
+
+@app.post(
+    "/analyze/social",
+    response_model=AnalysisResult,
+    summary="Analizar comentario de red social (TikTok/Instagram)",
+    dependencies=[Depends(verify_api_key)],
+)
+def analyze_social_comment(payload: SocialMediaIn, db: Session = Depends(get_db)):
+    from social_analyzer import analyze_social
+
+    result = analyze_social(payload)
+
+    log = AuditLog(
+        task_id=str(uuid.uuid4()),
+        game_id=payload.platform_id,
+        session_id=payload.post_id,
+        player_id=payload.commenter_id,
+        target_id=payload.creator_id,
+        message_preview=payload.comment[:100],
+        raw_message=payload.comment,
+        risk=result.risk,
+        level=result.level.value,
+        reason=result.reason,
+        action=result.action.value,
+    )
+    db.add(log)
+    db.commit()
+    return result
 
 
 @app.get(

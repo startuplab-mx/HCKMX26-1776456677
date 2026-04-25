@@ -34,6 +34,27 @@ class MessageIn(BaseModel):
     timestamp: Optional[datetime] = Field(default_factory=datetime.utcnow)
 
 
+class PlatformContext(BaseModel):
+    platform: str = Field(..., description="tiktok | instagram | youtube | twitter")
+    post_description: Optional[str] = Field(None, max_length=500)
+    post_hashtags: Optional[list[str]] = Field(default_factory=list)
+    account_age_days: Optional[int] = None
+    follower_count: Optional[int] = None
+    following_count: Optional[int] = None
+    creator_is_minor: Optional[bool] = None
+
+
+class SocialMediaIn(BaseModel):
+    """Payload for social media comment analysis."""
+    platform_id: str = Field(..., description="Platform identifier, e.g. 'tiktok-prod'")
+    post_id: str = Field(..., description="Post/video being commented on")
+    commenter_id: str = Field(..., description="Hashed commenter account ID")
+    creator_id: str = Field(..., description="Hashed content creator ID")
+    comment: str = Field(..., max_length=2000)
+    context: Optional[PlatformContext] = None
+    timestamp: Optional[datetime] = Field(default_factory=datetime.utcnow)
+
+
 class AnalysisResult(BaseModel):
     risk: bool
     level: RiskLevel
