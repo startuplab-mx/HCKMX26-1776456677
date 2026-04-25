@@ -8,7 +8,7 @@ interface Props {
 
 export function JoinScreen({ onJoin }: Props) {
   const [form, setForm] = useState<ConnectionState>({
-    serverUrl: 'ws://localhost:8000',
+    serverUrl: `ws://${window.location.hostname}:8000`,
     roomId: 'sala-demo',
     playerId: '',
     gameId: 'GuardianNode Demo',
