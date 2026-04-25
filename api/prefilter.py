@@ -52,6 +52,20 @@ _BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
     ), "Solicitud de ubicación"),
 
     (re.compile(
+        r"\b(d[ií](gam[eo]s?|game?s?)|manda|pasa|deja)\b.{0,25}"
+        r"\b(ubicaci[oó]n|direcci[oó]n|domicilio|colonia|direcci[oó]n\s+de\s+tu\s+casa)\b",
+        re.IGNORECASE
+    ), "Solicitud de ubicación física"),
+
+    # Phone number / contact solicitation
+    (re.compile(
+        r"\b(pasa|dame|manda|comparte|tira|deja)\b.{0,20}"
+        r"\b(tu\s+n[uú]mero|tu\s+cel|tu\s+cel[uu]lar|tu\s+whats|tu\s+tele[fé]ono|"
+        r"n[uú]mero\s+de\s+(tu\s+)?cel|tu\s+contacto)\b",
+        re.IGNORECASE
+    ), "Solicitud de número de teléfono/contacto"),
+
+    (re.compile(
         r"\b(manda|envía|envia|sube|pásamela?|pasamela?)\s+(foto|fotos)\s+(de\s+)?(tu\s+)?"
         r"(casa|calle|colonia|barrio|escuela|colegio)\b",
         re.IGNORECASE
@@ -136,6 +150,8 @@ _SEXUAL_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
         r"pech[ao]\s+(bueno|lindo|rico))\b",
         re.IGNORECASE
     ), "Comentario sexual explícito sobre cuerpo"),
+
+    # Mexican sexual slang — "chichis" (breasts), "concha" (vagina MX slang)
 ]
 
 # ── Sexual grooming — medium-confidence warn ──────────────────────────────────
@@ -203,10 +219,18 @@ _CARTEL_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
 
     # Standalone cartel role identifiers — high-confidence even without context
     (re.compile(
-        r"\b(halc[oó]n|halconeo|burrer[oa]|mula\s+de\s+(droga|carga)|sicari[oa]|"
+        r"\b(halc[oó]n|halcanazo|halconazo|hal\s*c[oó]n|halconeo|burrer[oa]|"
+        r"mula\s+de\s+(droga|carga)|sicari[oa]|"
         r"plaza\s+(controlada|del\s+\w+)|jefe\s+de\s+plaza)\b",
         re.IGNORECASE
     ), "Rol criminal cartel (halcón/burrero/sicario)"),
+
+    # Drug offer — explicit
+    (re.compile(
+        r"\b(quieren?|vendo|consigo|hay|tengo)\s+(droga[s]?|mota|hierba|cristal|"
+        r"polvo|coca|chiva|foco[s]?|pastillas?)\b",
+        re.IGNORECASE
+    ), "Oferta de drogas"),
 
     # "4L" / "4 letras" / "cuatro letras" = CJNG identifier (fuente: PDF)
     (re.compile(
@@ -389,11 +413,12 @@ _SHORT_SAFE = re.compile(
 # Keywords that disqualify a short message from being auto-allowed
 _RISK_WORDS = re.compile(
     r"\b(paga|pago|dinero|lana|feria|trabajo|jale|chamba|patrulla|patrullas|policia|federal|"
-    r"discord|whatsapp|telegram|pasate|nude|nudes|foto|fotos|camara|"
-    r"solo|sola|solito|solita|solos|edad|cuantos|anos|jale|"
-    r"avisame|avisa|vigila|checa|halcon|sicario|burrero|cartel|plaza|"
+    r"discord|whatsapp|telegram|pasate|nude|nudes|foto|fotos|camara|numero|cel|celular|"
+    r"solo|sola|solito|solita|solos|edad|cuantos|anos|ubicacion|direccion|domicilio|"
+    r"avisame|avisa|vigila|checa|halcon|halcanazo|sicario|burrero|cartel|plaza|"
+    r"droga|mota|cristal|coca|chiva|foco|"
     r"sexo|sexual|pene|pito|verga|culo|culos|nalga|nalgas|culito|"
-    r"tetas|chichi|butt|dick|cock|pussy|porn|phub|onlyfans|hub)\b",
+    r"tetas|butt|dick|cock|pussy|porn|phub|onlyfans|hub)\b",
     re.IGNORECASE
 )
 
