@@ -4,7 +4,13 @@ Runs in <1ms, zero network calls.
 Returns AnalysisResult directly for obvious cases, None for ambiguous.
 """
 import re
+import unicodedata
 from models import AnalysisResult, RiskLevel, Action
+
+
+def _normalize(text: str) -> str:
+    """Strip accents so 'pásate' matches 'pasate', 'dónde' matches 'donde', etc."""
+    return unicodedata.normalize("NFD", text).encode("ascii", "ignore").decode("ascii")
 
 # ── High-confidence block patterns ────────────────────────────────────────────
 # Match = immediate block, no LLM needed
@@ -301,49 +307,27 @@ _EMOJI_WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
 
 def prefilter(message: str) -> AnalysisResult | None:
     """
-    Returns AnalysisResult if rule fires with high confidence.
-    Returns None → message must go to LLM (Tier 2).
-
-    Check order:
-    1. Criminal recruitment (generic)
-    2. Sexual grooming
-    3. Cartel-specific (slang, hashtags, real phrases)
-    4. Emoji cartel codes
-    5. Warn patterns → LLM
+    Runs all patterns against both original and accent-normalized text.
+    Returns AnalysisResult on match, None → pass to LLM.
     """
-    for pattern, reason in _BLOCK_PATTERNS:
-        if pattern.search(message):
-            return AnalysisResult(risk=True, level=RiskLevel.high, reason=reason, action=Action.block)
+    msg_norm = _normalize(message)
 
-    for pattern, reason in _SEXUAL_BLOCK_PATTERNS:
-        if pattern.search(message):
-            return AnalysisResult(risk=True, level=RiskLevel.high, reason=reason, action=Action.block)
+    def _check(patterns: list, level: RiskLevel, action: Action) -> AnalysisResult | None:
+        for pattern, reason in patterns:
+            if pattern.search(message) or pattern.search(msg_norm):
+                return AnalysisResult(risk=True, level=level, reason=reason, action=action)
+        return None
 
-    for pattern, reason in _CARTEL_BLOCK_PATTERNS:
-        if pattern.search(message):
-            return AnalysisResult(risk=True, level=RiskLevel.high, reason=reason, action=Action.block)
-
-    for pattern, reason in _EMOJI_BLOCK_PATTERNS:
-        if pattern.search(message):
-            return AnalysisResult(risk=True, level=RiskLevel.high, reason=reason, action=Action.block)
-
-    for pattern, reason in _WARN_PATTERNS:
-        if pattern.search(message):
-            return AnalysisResult(risk=True, level=RiskLevel.low, reason=reason, action=Action.warn)
-
-    for pattern, reason in _CARTEL_WARN_PATTERNS:
-        if pattern.search(message):
-            return AnalysisResult(risk=True, level=RiskLevel.medium, reason=reason, action=Action.warn)
-
-    for pattern, reason in _EMOJI_WARN_PATTERNS:
-        if pattern.search(message):
-            return AnalysisResult(risk=True, level=RiskLevel.medium, reason=reason, action=Action.warn)
-
-    for pattern, reason in _SEXUAL_WARN_PATTERNS:
-        if pattern.search(message):
-            return None  # LLM confirms sexual intent
-
-    return None  # Ambiguous → LLM
+    return (
+        _check(_BLOCK_PATTERNS,        RiskLevel.high,   Action.block) or
+        _check(_SEXUAL_BLOCK_PATTERNS, RiskLevel.high,   Action.block) or
+        _check(_CARTEL_BLOCK_PATTERNS, RiskLevel.high,   Action.block) or
+        _check(_EMOJI_BLOCK_PATTERNS,  RiskLevel.high,   Action.block) or
+        _check(_WARN_PATTERNS,         RiskLevel.low,    Action.warn)  or
+        _check(_CARTEL_WARN_PATTERNS,  RiskLevel.medium, Action.warn)  or
+        _check(_EMOJI_WARN_PATTERNS,   RiskLevel.medium, Action.warn)  or
+        None  # sexual warn patterns → LLM
+    )
 
 
 def prefilter_social(message: str) -> AnalysisResult | None:

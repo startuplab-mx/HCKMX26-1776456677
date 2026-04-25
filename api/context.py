@@ -117,7 +117,7 @@ def format_context_for_llm(
     target_id: str,
     current_message: str,
 ) -> str:
-    history = get_context(game_id, session_id, player_id, target_id)
+    history = get_context(game_id, session_id, player_id, target_id)[-6:]  # last 6 only — keeps prompt short for 8B
     global_risk = get_player_global_risk(game_id, player_id)
     now_iso = datetime.now(timezone.utc).isoformat()
 
