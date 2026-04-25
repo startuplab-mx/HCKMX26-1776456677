@@ -355,13 +355,15 @@ _CARTEL_WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
 ]
 
 # ── Emoji cartel codes (fuente: Reclutamiento Digital — Constanza Nuche) ──────
-# 🍕 = Chapiza / Cártel de Sinaloa ("CH🍕" = Chapizza)
-# 🐓 = CJNG / El Señor de los Gallos (Nemesio Oseguera "El Mencho")
-# 🆖 = CJNG Nueva Generación (frecuente tras el número 4: "4🆖")
-# 🍇 = Unión Tepito (CDMX)
-# 🥷 = operador de cártel encapuchado
-# 😈👹 = identidad criminal / glorificación
-# 🧿 = "la maña" (referencia general al crimen organizado)
+# 🍕  = Chapizza / Cártel de Sinaloa (facción Chapiza, "CH🍕")
+# 🐓  = CJNG / El Señor de los Gallos (Nemesio Oseguera "El Mencho")
+# 🆖  = CJNG Nueva Generación ("4🆖", siglas NG)
+# 🍇  = Unión Tepito (CDMX)
+# 🥷  = ninja — operador encapuchado de cártel (uno de los más usados)
+# 🪖⛑️ = casco — videos de personas fuertemente armadas, camionetas de lujo
+# 😈  = diablo — representa el mal / identidad criminal
+# 👹  = ogro (namahague) — variante del diablo, asociado a Makabélico/CJNG
+# 🧿  = ojo turco — "la maña" (crimen organizado en general)
 
 # Emoji combos that signal cartel affiliation + recruitment context
 _EMOJI_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
@@ -369,18 +371,18 @@ _EMOJI_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(
         r"(únete|jálate|jalense|busca(mos|n)|empleo|trabajo|chamba|laborar|info\s+al\s+priv)"
         r".{0,60}"
-        r"(🍕|🐓|🆖|🍇|🥷|😈|👹)",
+        r"(🍕|🐓|🆖|🍇|🥷|🪖|⛑️|😈|👹)",
         re.IGNORECASE
     ), "Emoji cartel + llamado a reclutamiento"),
 
     (re.compile(
-        r"(🍕|🐓|🆖|🍇|🥷|😈|👹)"
+        r"(🍕|🐓|🆖|🍇|🥷|🪖|⛑️|😈|👹)"
         r".{0,60}"
         r"(únete|jálate|jalense|busca(mos|n)|empleo|trabajo|chamba|laborar|info\s+al\s+priv)",
         re.IGNORECASE
     ), "Emoji cartel + llamado a reclutamiento"),
 
-    # "CH🍕" = Chapizza (Cártel de Sinaloa facción Chapo) + recruitment
+    # "CH🍕" = Chapizza (Cártel de Sinaloa facción Chapo)
     (re.compile(r"ch\s*🍕", re.IGNORECASE), "Referencia directa Chapizza (CDS)"),
 
     # "4🆖" = CJNG Nueva Generación
@@ -389,7 +391,7 @@ _EMOJI_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
 
 def _has_two_distinct_cartel_emojis(text: str) -> bool:
     """Require at least 2 DIFFERENT cartel emojis — avoids triple-same-emoji false positive."""
-    cartel = [e for e in "🍕🐓🆖🍇🥷😈👹🧿" if e in text]
+    cartel = [e for e in "🍕🐓🆖🍇🥷🪖⛑️😈👹🧿" if e in text]
     return len(set(cartel)) >= 2
 
 
@@ -400,7 +402,7 @@ _EMOJI_WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
 ]
 
 # Cartel emoji check runs separately via function (not regex) to avoid false positives
-_CARTEL_EMOJI_PRESENCE = re.compile(r"(🍕|🐓|🆖|🍇|🥷|😈|👹|🧿)")
+_CARTEL_EMOJI_PRESENCE = re.compile(r"(🍕|🐓|🆖|🍇|🥷|🪖|⛑️|😈|👹|🧿)")
 
 
 # Common safe tokens — clearly benign regardless of context

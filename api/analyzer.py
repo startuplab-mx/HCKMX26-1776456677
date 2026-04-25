@@ -36,9 +36,11 @@ CÓDIGOS DE CÁRTELES MEXICANOS (detectar en mensajes):
 - 🐓 / "el gallo" / "el señor de los gallos" / "el mencho" = CJNG (Cártel Jalisco Nueva Generación)
 - 🆖 / "4🆖" / "NG" / "4L" / "4 letras" / "cuatro letras" = CJNG (Nueva Generación)
 - 🍇 / "unión" / "tepito" = Unión Tepito (CDMX)
-- 🥷 = operador de cártel encapuchado
-- 😈 / 👹 = identidad criminal / glorificación del crimen
-- 🧿 = "la maña" (crimen organizado en general)
+- 🥷 = ninja — operador encapuchado de cártel (uno de los más frecuentes en reclutamiento)
+- 🪖 / ⛑️ = casco — contenido de personas fuertemente armadas, camionetas de lujo
+- 😈 = diablo — identidad criminal / glorificación del mal
+- 👹 = ogro (namahague) — variante del diablo, asociado a Makabélico/CJNG
+- 🧿 = ojo turco — "la maña" (crimen organizado en general)
 - "la empresa" / "la organización" = eufemismo para referirse al cártel
 - "la plebada" = grupo/gente del cártel
 - "el jale" / "jale bueno" = trabajo criminal
