@@ -9,8 +9,8 @@ interface Props {
 
 export function JoinScreen({ onJoin, onAdminMode }: Props) {
   const [form, setForm] = useState<ConnectionState>({
-    serverUrl: `ws://${window.location.hostname}:8000`,
-    roomId: 'sala-demo',
+    serverUrl: `ws://${window.location.hostname}:8888`,
+    roomId: 'sala-demo-unity',
     playerId: '',
     gameId: 'GuardianNode Demo',
   })
@@ -49,7 +49,7 @@ export function JoinScreen({ onJoin, onAdminMode }: Props) {
             <input
               value={form.serverUrl}
               onChange={set('serverUrl')}
-              placeholder="ws://192.168.1.10:8000"
+              placeholder="ws://192.168.1.10:8888"
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-green-500 transition-colors"
             />
           </Field>
