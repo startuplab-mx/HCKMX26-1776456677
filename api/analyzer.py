@@ -204,10 +204,19 @@ def analyze_message(
     # Tier 0: normalize obfuscated text before any analysis
     clean = normalizar_texto(message)
 
-    # Tier 1: regex prefilter — 0ms, no network (run on both raw + cleaned)
-    fast = prefilter(message) or prefilter(clean)
-    if fast is not None:
-        return fast
+    # Tier 1: regex prefilter — 0ms, no network
+    # Run on raw first; if raw gives allow but clean gives risk, clean wins
+    fast_raw = prefilter(message)
+    fast_clean = prefilter(clean)
+
+    if fast_raw is not None and fast_raw.risk:
+        return fast_raw                        # raw hit — block/warn on literal text
+    if fast_clean is not None and fast_clean.risk:
+        return fast_clean                      # clean hit — obfuscated input caught
+    if fast_raw is not None:
+        return fast_raw                        # both gave allow → return allow
+    if fast_clean is not None:
+        return fast_clean                      # raw=None, clean=allow → return clean
 
     # Tier 1.5: result cache — skip LLM for repeated message+player within 60s
     if player_id:

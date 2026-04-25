@@ -38,8 +38,10 @@ class Room:
     players: dict[str, Player] = field(default_factory=dict)
     dashboard_listeners: set[WebSocket] = field(default_factory=set)
 
+    MAX_PLAYERS = 20
+
     def is_full(self) -> bool:
-        return len(self.players) >= 2
+        return len(self.players) >= self.MAX_PLAYERS
 
     async def broadcast(self, msg: dict, exclude: str | None = None):
         dead = []
@@ -130,9 +132,8 @@ async def game_room_ws(websocket: WebSocket, room_id: str):
                 if not text:
                     continue
 
-                # Find the other player as target
-                other_ids = [pid for pid in room.players if pid != player_id]
-                target_id = other_ids[0] if other_ids else "unknown"
+                # Group context: use stable room target so all messages share one context
+                target_id = f"group_{room_id}"
 
                 # Run moderation in thread pool (sync LLM calls)
                 loop = asyncio.get_event_loop()

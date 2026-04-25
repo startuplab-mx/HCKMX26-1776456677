@@ -159,9 +159,10 @@ _SEXUAL_WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
 
     # "Are you alone" — classic grooming setup
     (re.compile(
-        r"\b(estás\s+sol[ao]|estás\s+en\s+tu\s+(cuarto|recámara|habitación)|"
+        r"\b(est[aá]s\s+solit?[ao]|est[aá]s\s+sol[ao]|"
+        r"est[aá]s\s+en\s+tu\s+(cuarto|rec[aá]mara|habitaci[oó]n)|"
         r"hay\s+alguien\s+(contigo|en\s+tu\s+casa)|"
-        r"tus?\s+(papás?|mamá|padres)\s+están?\s+en\s+casa)\b",
+        r"tus?\s+(pap[aá]s?|mam[aá]|padres)\s+est[aá]n?\s+en\s+casa)\b",
         re.IGNORECASE
     ), "Sondeo de si el menor está solo (patrón grooming)"),
 ]
@@ -183,7 +184,7 @@ _WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
     ), "Ingeniería social / manipulación emocional"),
 
     (re.compile(
-        r"\b(cuántos?\s+años?\s+tienes?|en\s+qué\s+grado\s+estás?|vas\s+a\s+la\s+escuela)\b",
+        r"\b(cu[aá]ntos?\s+a[nñ]os?\s+tienes?|en\s+qu[eé]\s+grado\s+est[aá]s?|vas\s+a\s+la\s+escuela)\b",
         re.IGNORECASE
     ), "Sondeo de edad/perfil del menor"),
 ]
@@ -195,10 +196,17 @@ _WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
 _CARTEL_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
     # Direct recruitment + cartel language
     (re.compile(
-        r"\b(el\s+patrón|el\s+jefe|la\s+organización|la\s+empresa|la\s+compañía)\b.{0,40}"
+        r"\b(el\s+patr[oó]n|el\s+jefe|la\s+organizaci[oó]n|la\s+empresa|la\s+compa[nñ][ií]a)\b.{0,40}"
         r"\b(te\s+(llama|busca|quiere|necesita)|quiere\s+hablar(te)?|hay\s+trabajo)\b",
         re.IGNORECASE
     ), "Reclutamiento directo por organización criminal"),
+
+    # Standalone cartel role identifiers — high-confidence even without context
+    (re.compile(
+        r"\b(halc[oó]n|halconeo|burrer[oa]|mula\s+de\s+(droga|carga)|sicari[oa]|"
+        r"plaza\s+(controlada|del\s+\w+)|jefe\s+de\s+plaza)\b",
+        re.IGNORECASE
+    ), "Rol criminal cartel (halcón/burrero/sicario)"),
 
     # "4L" / "4 letras" / "cuatro letras" = CJNG identifier (fuente: PDF)
     (re.compile(
@@ -380,8 +388,9 @@ _SHORT_SAFE = re.compile(
 
 # Keywords that disqualify a short message from being auto-allowed
 _RISK_WORDS = re.compile(
-    r"\b(paga|pago|dinero|lana|feria|trabajo|jale|chamba|patrulla|policia|federal|"
-    r"discord|whatsapp|telegram|pasate|nude|foto|camara|solo|solos|"
+    r"\b(paga|pago|dinero|lana|feria|trabajo|jale|chamba|patrulla|patrullas|policia|federal|"
+    r"discord|whatsapp|telegram|pasate|nude|nudes|foto|fotos|camara|"
+    r"solo|sola|solito|solita|solos|edad|cuantos|anos|jale|"
     r"avisame|avisa|vigila|checa|halcon|sicario|burrero|cartel|plaza|"
     r"sexo|sexual|pene|pito|verga|culo|culos|nalga|nalgas|culito|"
     r"tetas|chichi|butt|dick|cock|pussy|porn|phub|onlyfans|hub)\b",
@@ -394,13 +403,9 @@ def prefilter(message: str) -> AnalysisResult | None:
     Runs all patterns against both original and accent-normalized text.
     Returns AnalysisResult on match, None → pass to LLM.
     """
-    # Fast-pass 1: known safe tokens
+    # Fast-pass 1: known safe tokens (unambiguous, no pattern check needed)
     if _SAFE_PASS.match(message):
         return AnalysisResult(risk=False, level=RiskLevel.low, reason="Expresión de juego segura", action=Action.allow)
-
-    # Fast-pass 2: short messages (≤30 chars) without any risk keywords
-    if len(message) <= 30 and _SHORT_SAFE.match(message) and not _RISK_WORDS.search(message):
-        return AnalysisResult(risk=False, level=RiskLevel.low, reason="Mensaje corto sin indicadores de riesgo", action=Action.allow)
 
     msg_norm = _normalize(message)
 
@@ -410,12 +415,27 @@ def prefilter(message: str) -> AnalysisResult | None:
                 return AnalysisResult(risk=True, level=level, reason=reason, action=action)
         return None
 
-    # Specific check for sexual warnings (always goes to LLM)
+    # Block patterns always run first — before any fast-pass
+    block = (
+        _check(_BLOCK_PATTERNS,        RiskLevel.high, Action.block) or
+        _check(_SEXUAL_BLOCK_PATTERNS, RiskLevel.high, Action.block) or
+        _check(_CARTEL_BLOCK_PATTERNS, RiskLevel.high, Action.block) or
+        _check(_EMOJI_BLOCK_PATTERNS,  RiskLevel.high, Action.block)
+    )
+    if block:
+        return block
+
+    # Fast-pass 2: short messages with no risk keywords → skip warn + LLM
+    # Safe ONLY after confirming no block patterns matched above
+    if len(message) <= 30 and _SHORT_SAFE.match(message) and not _RISK_WORDS.search(message):
+        return AnalysisResult(risk=False, level=RiskLevel.low, reason="Mensaje corto sin indicadores de riesgo", action=Action.allow)
+
+    # Sexual warn patterns → always defer to LLM for context
     for pattern, _ in _SEXUAL_WARN_PATTERNS:
         if pattern.search(message) or pattern.search(msg_norm):
-            return None  # LLM must confirm sexual grooming intent
+            return None
 
-    # Cartel emoji: require 2 DISTINCT emojis to avoid triple-same false positive
+    # Cartel emoji: require 2 DISTINCT emojis
     cartel_emoji_result = None
     if _CARTEL_EMOJI_PRESENCE.search(message) and _has_two_distinct_cartel_emojis(message):
         cartel_emoji_result = AnalysisResult(
@@ -425,13 +445,9 @@ def prefilter(message: str) -> AnalysisResult | None:
         )
 
     return (
-        _check(_BLOCK_PATTERNS,        RiskLevel.high,   Action.block) or
-        _check(_SEXUAL_BLOCK_PATTERNS, RiskLevel.high,   Action.block) or
-        _check(_CARTEL_BLOCK_PATTERNS, RiskLevel.high,   Action.block) or
-        _check(_EMOJI_BLOCK_PATTERNS,  RiskLevel.high,   Action.block) or
-        _check(_WARN_PATTERNS,         RiskLevel.low,    Action.warn)  or
-        _check(_CARTEL_WARN_PATTERNS,  RiskLevel.medium, Action.warn)  or
-        _check(_EMOJI_WARN_PATTERNS,   RiskLevel.medium, Action.warn)  or
+        _check(_WARN_PATTERNS,        RiskLevel.low,    Action.warn) or
+        _check(_CARTEL_WARN_PATTERNS, RiskLevel.medium, Action.warn) or
+        _check(_EMOJI_WARN_PATTERNS,  RiskLevel.medium, Action.warn) or
         cartel_emoji_result or
         None
     )

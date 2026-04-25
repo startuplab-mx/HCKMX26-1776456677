@@ -151,7 +151,18 @@ def analyze_social(payload: SocialMediaIn) -> AnalysisResult:
     """
     clean = normalizar_texto(payload.comment)
 
-    fast = prefilter(payload.comment) or prefilter(clean)
+    fast_raw = prefilter(payload.comment)
+    fast_clean = prefilter(clean)
+    fast = None
+    if fast_raw is not None and fast_raw.risk:
+        fast = fast_raw
+    elif fast_clean is not None and fast_clean.risk:
+        fast = fast_clean
+    elif fast_raw is not None:
+        fast = fast_raw
+    elif fast_clean is not None:
+        fast = fast_clean
+
     if fast is not None:
         return _apply_account_risk_floor(fast, payload)
 
