@@ -33,9 +33,13 @@ INDICADORES — GROOMING SEXUAL:
 
 REGLAS DE OPERACIÓN:
 - Sé conservador: ante la duda, clasifica como "medium" y "warn".
+- Preguntas sobre edad/escuela sin intención sexual o criminal = "low" y "warn" (no bloquear).
 - Ignora el "trash talk" competitivo normal (ej: "eres malo", "te gané", "noob").
 - Grooming sexual + cualquier señal de que la víctima es menor = clasificar como "high" inmediato.
-- Si el patrón muestra escalamiento gradual (confianza → preguntas personales → solicitudes sexuales), clasifica más severamente.
+- Evalúa ÚNICAMENTE la intención de JUGADOR_A en el MENSAJE NUEVO.
+- No atribuyas a JUGADOR_A los indicadores de riesgo cometidos por JUGADOR_B en el historial.
+- IMPORTANTE: Preguntas recíprocas (ej: "¿y tú?", "¿y los tuyos?") después de que el otro jugador preguntó algo personal suelen ser respuestas sociales normales del menor, NO nuevos intentos de grooming.
+- NEGACIONES Y RECHAZO: Si JUGADOR_A responde "NO", "no puedo", "no quiero", o expresiones de molestia ("osh", "pff") ante una propuesta de JUGADOR_B, NO lo clasifiques como riesgo. El rechazo es una señal de seguridad.
 - Respuesta ÚNICAMENTE en JSON válido, sin texto extra.
 
 ESTRUCTURA DEL JSON:
@@ -53,7 +57,14 @@ def _parse_llm_response(raw: str) -> AnalysisResult:
         raw = raw.split("```")[1]
         if raw.startswith("json"):
             raw = raw[4:]
-    data = json.loads(raw.strip())
+    raw = raw.strip()
+    # Extract first JSON object — model sometimes appends extra text
+    brace = raw.find("{")
+    if brace != -1:
+        decoder = json.JSONDecoder()
+        data, _ = decoder.raw_decode(raw, brace)
+    else:
+        data = json.loads(raw)
     return AnalysisResult(
         risk=data["risk"],
         level=RiskLevel(data["level"]),
@@ -87,7 +98,7 @@ def analyze_with_groq(prompt: str) -> AnalysisResult:
         prompt,
         base_url="https://api.groq.com/openai/v1",
         api_key=settings.groq_api_key,
-        model="llama-3.1-8b-instant",
+        model="llama-3.3-70b-versatile",
     )
 
 
@@ -186,4 +197,14 @@ def analyze_message(
     else:
         prompt = message
 
-    return _call_llm_with_fallback(prompt)
+    try:
+        return _call_llm_with_fallback(prompt)
+    except Exception as e:
+        # FAIL-CLOSE: Si la IA falla, no dejamos pasar el mensaje en silencio.
+        # Marcamos como riesgo medio para que un humano lo revise.
+        return AnalysisResult(
+            risk=True,
+            level=RiskLevel.medium,
+            reason=f"Fallo en motor IA (Fail-Close). Error: {str(e)[:50]}",
+            action=Action.warn,
+        )

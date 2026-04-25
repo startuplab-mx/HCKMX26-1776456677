@@ -12,7 +12,7 @@ from models import AnalysisResult, RiskLevel, Action
 _BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
     # Platform migration
     (re.compile(
-        r"\b(pasa(me|te)|ven|agrega(me)?|escri(be|beme)|contacta(me)?)\b.{0,40}"
+        r"\b(pasa(me|te)?|enví(a|ame)|envia(me)?|manda(me)?|ven|agrega(me)?|escri(be|beme)|contacta(me)?)\b.{0,40}"
         r"\b(whatsapp|whats|wsp|telegram|tele|discord|dm|privado|signal)\b",
         re.IGNORECASE
     ), "Migración a plataforma privada"),
@@ -186,10 +186,15 @@ def prefilter(message: str) -> AnalysisResult | None:
 
     for pattern, reason in _WARN_PATTERNS:
         if pattern.search(message):
-            return None  # LLM confirms
+            return AnalysisResult(
+                risk=True,
+                level=RiskLevel.low,
+                reason=reason,
+                action=Action.warn,
+            )
 
     for pattern, reason in _SEXUAL_WARN_PATTERNS:
         if pattern.search(message):
-            return None  # LLM confirms
+            return None  # LLM confirms sexual intent
 
     return None  # Ambiguous → LLM
