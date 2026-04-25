@@ -73,11 +73,11 @@ def _parse_llm_response(raw: str) -> AnalysisResult:
     )
 
 
-def _call_openai_compat(prompt: str, base_url: str, api_key: str, model: str) -> AnalysisResult:
+def _call_openai_compat(prompt: str, base_url: str, api_key: str, model: str, system: str | None = None) -> AnalysisResult:
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system or SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
         ],
         "max_tokens": 128,
@@ -93,37 +93,39 @@ def _call_openai_compat(prompt: str, base_url: str, api_key: str, model: str) ->
     return _parse_llm_response(resp.json()["choices"][0]["message"]["content"])
 
 
-def analyze_with_groq(prompt: str) -> AnalysisResult:
+def analyze_with_groq(prompt: str, system: str | None = None) -> AnalysisResult:
     return _call_openai_compat(
         prompt,
         base_url="https://api.groq.com/openai/v1",
         api_key=settings.groq_api_key,
         model="llama-3.3-70b-versatile",
+        system=system,
     )
 
 
-def analyze_with_nvidia(prompt: str) -> AnalysisResult:
+def analyze_with_nvidia(prompt: str, system: str | None = None) -> AnalysisResult:
     return _call_openai_compat(
         prompt,
         base_url="https://integrate.api.nvidia.com/v1",
         api_key=settings.nvidia_api_key,
         model="meta/llama-3.1-70b-instruct",
+        system=system,
     )
 
 
-def analyze_with_claude(prompt: str) -> AnalysisResult:
+def analyze_with_claude(prompt: str, system: str | None = None) -> AnalysisResult:
     import anthropic
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=128,
-        system=SYSTEM_PROMPT,
+        system=system or SYSTEM_PROMPT,
         messages=[{"role": "user", "content": prompt}],
     )
     return _parse_llm_response(response.content[0].text)
 
 
-def _call_llm_with_fallback(prompt: str) -> AnalysisResult:
+def _call_llm_with_fallback(prompt: str, system_override: str | None = None) -> AnalysisResult:
     """Try primary provider, fall back to next available on failure."""
     providers_in_order = []
 
@@ -150,7 +152,7 @@ def _call_llm_with_fallback(prompt: str) -> AnalysisResult:
 
     for name, fn in providers_in_order:
         try:
-            return fn(prompt)
+            return fn(prompt, system_override)
         except Exception as e:
             last_err = e
             continue

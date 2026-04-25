@@ -159,6 +159,76 @@ _WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
 ]
 
 
+# ── Cartel recruitment — social media specific ────────────────────────────────
+
+_CARTEL_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
+    # Direct recruitment + cartel language
+    (re.compile(
+        r"\b(el\s+patrón|el\s+jefe|la\s+organización|la\s+empresa|la\s+compañía)\b.{0,40}"
+        r"\b(te\s+(llama|busca|quiere|necesita)|quiere\s+hablar(te)?|hay\s+trabajo)\b",
+        re.IGNORECASE
+    ), "Reclutamiento directo por organización criminal"),
+
+    (re.compile(
+        r"\b(burrer[oa]|mula|halcón|halcon|sicario|plaza|jale\s+bueno|buen\s+jale)\b.{0,50}"
+        r"\b(trabajo|chamba|ganar|lana|feria|billete)\b",
+        re.IGNORECASE
+    ), "Slang cartel asociado a oferta laboral"),
+
+    (re.compile(
+        r"\b(cruzar|brincar\s+el\s+charco|pasar\s+al\s+otro\s+lado)\b.{0,40}"
+        r"\b(cositas|paquete|encomienda|algo\s+pequeño|mercancía|fardos?)\b",
+        re.IGNORECASE
+    ), "Oferta de tráfico/transporte ilícito"),
+
+    (re.compile(
+        r"\b(te\s+doy|te\s+pago|gana[rs]?)\s+\$?\d[\d,\.]*\s*(k|mil|pesos|dolares|usd)?\b.{0,60}"
+        r"\b(al\s+día|por\s+viaje|por\s+cruce|semanal|diario)\b",
+        re.IGNORECASE
+    ), "Oferta de pago específico por actividad criminal"),
+]
+
+_CARTEL_WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
+    # Luxury bait
+    (re.compile(
+        r"\b(así\s+se\s+vive|quieres\s+vivir\s+así|mira\s+cómo\s+(se\s+)?viv[eo]|"
+        r"tú\s+también\s+puedes\s+(tener|vivir)|carros?\s+y\s+(lana|dinero|feria))\b",
+        re.IGNORECASE
+    ), "Cebo de lujo — patrón de reclutamiento cartel"),
+
+    (re.compile(
+        r"\b(el\s+que\s+no\s+arriesga\s+no\s+gana|todos\s+lo\s+hacen|es\s+lo\s+normal\s+(aquí|en\s+el\s+rancho|en\s+la\s+colonia))\b",
+        re.IGNORECASE
+    ), "Normalización de actividad criminal"),
+
+    (re.compile(
+        r"\b(hay\s+(buen\s+)?trabajo|te\s+ofrezco\s+(chamba|jale)|tengo\s+(trabajo|chamba)\s+para\s+ti)\b",
+        re.IGNORECASE
+    ), "Oferta laboral sospechosa en redes"),
+]
+
+
+def prefilter_social(message: str) -> AnalysisResult | None:
+    """Cartel/social-media specific patterns — runs after base prefilter."""
+    for pattern, reason in _CARTEL_BLOCK_PATTERNS:
+        if pattern.search(message):
+            return AnalysisResult(
+                risk=True,
+                level=RiskLevel.high,
+                reason=reason,
+                action=Action.block,
+            )
+    for pattern, reason in _CARTEL_WARN_PATTERNS:
+        if pattern.search(message):
+            return AnalysisResult(
+                risk=True,
+                level=RiskLevel.medium,
+                reason=reason,
+                action=Action.warn,
+            )
+    return None
+
+
 def prefilter(message: str) -> AnalysisResult | None:
     """
     Returns AnalysisResult if rule fires with high confidence.
