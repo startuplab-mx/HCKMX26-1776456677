@@ -1,0 +1,247 @@
+"""
+Game room WebSocket — connects two players through the moderation pipeline.
+
+Protocol (JSON):
+  Client → Server:
+    {"type": "join",    "room": "abc", "player_id": "px", "game_id": "demo"}
+    {"type": "message", "text": "hola"}
+    {"type": "ping"}
+
+  Server → Client:
+    {"type": "joined",   "room": "abc", "player_id": "px", "players": [...]}
+    {"type": "player_joined", "player_id": "..."}
+    {"type": "player_left",   "player_id": "..."}
+    {"type": "message",  "from": "px", "text": "...", "level": "low", "blocked": false, "reason": ""}
+    {"type": "blocked",  "reason": "..."}          ← only to sender
+    {"type": "alert",    ...}                       ← only to dashboard listeners
+    {"type": "pong"}
+    {"type": "error",    "detail": "..."}
+"""
+import json
+import asyncio
+from dataclasses import dataclass, field
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
+router = APIRouter()
+
+
+@dataclass
+class Player:
+    ws: WebSocket
+    player_id: str
+    game_id: str
+
+
+@dataclass
+class Room:
+    room_id: str
+    players: dict[str, Player] = field(default_factory=dict)
+    dashboard_listeners: set[WebSocket] = field(default_factory=set)
+
+    def is_full(self) -> bool:
+        return len(self.players) >= 2
+
+    async def broadcast(self, msg: dict, exclude: str | None = None):
+        dead = []
+        for pid, player in self.players.items():
+            if pid == exclude:
+                continue
+            try:
+                await player.ws.send_json(msg)
+            except Exception:
+                dead.append(pid)
+        for pid in dead:
+            self.players.pop(pid, None)
+
+    async def send_to(self, player_id: str, msg: dict):
+        player = self.players.get(player_id)
+        if player:
+            try:
+                await player.ws.send_json(msg)
+            except Exception:
+                pass
+
+    async def notify_dashboards(self, alert: dict):
+        dead = []
+        for ws in list(self.dashboard_listeners):
+            try:
+                await ws.send_json(alert)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.dashboard_listeners.discard(ws)
+
+
+_rooms: dict[str, Room] = {}
+
+
+def _get_or_create_room(room_id: str) -> Room:
+    if room_id not in _rooms:
+        _rooms[room_id] = Room(room_id=room_id)
+    return _rooms[room_id]
+
+
+@router.websocket("/ws/game/{room_id}")
+async def game_room_ws(websocket: WebSocket, room_id: str):
+    await websocket.accept()
+    room = _get_or_create_room(room_id)
+    player_id: str | None = None
+    game_id: str = "simulator"
+
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
+                await websocket.send_json({"type": "error", "detail": "Invalid JSON"})
+                continue
+
+            mtype = msg.get("type")
+
+            # ── Join ──────────────────────────────────────────────────────────
+            if mtype == "join":
+                if room.is_full() and msg.get("player_id") not in room.players:
+                    await websocket.send_json({"type": "error", "detail": "Room full"})
+                    continue
+
+                player_id = msg.get("player_id", f"player_{len(room.players)+1}")
+                game_id = msg.get("game_id", "simulator")
+                room.players[player_id] = Player(ws=websocket, player_id=player_id, game_id=game_id)
+
+                await websocket.send_json({
+                    "type": "joined",
+                    "room": room_id,
+                    "player_id": player_id,
+                    "players": list(room.players.keys()),
+                })
+                await room.broadcast(
+                    {"type": "player_joined", "player_id": player_id},
+                    exclude=player_id,
+                )
+
+            # ── Chat message ──────────────────────────────────────────────────
+            elif mtype == "message":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "detail": "Join first"})
+                    continue
+
+                text = msg.get("text", "").strip()
+                if not text:
+                    continue
+
+                # Find the other player as target
+                other_ids = [pid for pid in room.players if pid != player_id]
+                target_id = other_ids[0] if other_ids else "unknown"
+
+                # Run moderation in thread pool (sync LLM calls)
+                loop = asyncio.get_event_loop()
+                try:
+                    result = await loop.run_in_executor(
+                        None,
+                        _moderate,
+                        text, game_id, room_id, player_id, target_id,
+                    )
+                except Exception as e:
+                    # LLM failed — allow message through, notify sender
+                    await websocket.send_json({
+                        "type": "error",
+                        "detail": f"Moderación no disponible: {str(e)[:80]}",
+                    })
+                    # Still deliver message so session doesn't die
+                    await room.broadcast({
+                        "type": "message",
+                        "from": player_id,
+                        "text": text,
+                        "level": "low",
+                        "blocked": False,
+                        "warned": False,
+                        "reason": "",
+                    })
+                    continue
+
+                blocked = result["action"] == "block"
+
+                if blocked:
+                    # Tell sender their message was blocked
+                    await websocket.send_json({
+                        "type": "blocked",
+                        "text": text,
+                        "reason": result["reason"],
+                        "level": result["level"],
+                    })
+                else:
+                    # Deliver to all players (including sender for UI echo)
+                    await room.broadcast({
+                        "type": "message",
+                        "from": player_id,
+                        "text": text,
+                        "level": result["level"],
+                        "blocked": False,
+                        "warned": result["action"] == "warn",
+                        "reason": result["reason"] if result["risk"] else "",
+                    })
+
+                # Always notify dashboard on risk
+                if result["risk"]:
+                    await room.notify_dashboards({
+                        "type": "alert",
+                        "room": room_id,
+                        "from": player_id,
+                        "text": text,
+                        "level": result["level"],
+                        "reason": result["reason"],
+                        "action": result["action"],
+                    })
+
+            # ── Ping ──────────────────────────────────────────────────────────
+            elif mtype == "ping":
+                await websocket.send_json({"type": "pong"})
+
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if player_id and player_id in room.players:
+            room.players.pop(player_id)
+            await room.broadcast({"type": "player_left", "player_id": player_id})
+        if not room.players:
+            _rooms.pop(room_id, None)
+
+
+@router.websocket("/ws/game/{room_id}/dashboard")
+async def room_dashboard_ws(websocket: WebSocket, room_id: str):
+    """Dashboard connects here to receive alerts for a specific room."""
+    await websocket.accept()
+    room = _get_or_create_room(room_id)
+    room.dashboard_listeners.add(websocket)
+    try:
+        while True:
+            await websocket.receive_text()  # keep-alive
+    except WebSocketDisconnect:
+        pass
+    finally:
+        room.dashboard_listeners.discard(websocket)
+
+
+def _moderate(text: str, game_id: str, session_id: str, player_id: str, target_id: str) -> dict:
+    """Sync wrapper for the analysis pipeline — runs in executor."""
+    from analyzer import analyze_message
+    from context import push_message
+
+    result = analyze_message(
+        message=text,
+        game_id=game_id,
+        session_id=session_id,
+        player_id=player_id,
+        target_id=target_id,
+    )
+    push_message(
+        game_id=game_id,
+        session_id=session_id,
+        player_id=player_id,
+        target_id=target_id,
+        message=text,
+        risk=result.risk,
+        level=result.level.value,
+    )
+    return result.model_dump()

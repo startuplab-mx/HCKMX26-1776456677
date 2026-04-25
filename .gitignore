@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.env
+*.db
+*.db-journal
+
+# Conda env (do NOT commit)
+.conda/
+
+# Node
+node_modules/
+dist/
+.DS_Store
+
+# Logs
+*.log
+celerybeat-schedule

@@ -1,0 +1,178 @@
+import json
+import httpx
+from models import AnalysisResult, RiskLevel, Action
+from config import get_settings
+from prefilter import prefilter
+
+settings = get_settings()
+
+SYSTEM_PROMPT = """Eres el motor de análisis de GuardianNode, un sistema de moderación B2B diseñado para proteger a menores en plataformas de videojuegos.
+
+TU TAREA:
+Analizar mensajes de texto (chats) provenientes de videojuegos en tiempo real para detectar intentos de RECLUTAMIENTO CRIMINAL (trata, narco, pandillas).
+
+Si recibes HISTORIAL DE CONVERSACIÓN, analiza el patrón completo, no solo el mensaje nuevo.
+Un mensaje inocente puede ser parte de un patrón de reclutamiento estructurado en múltiples mensajes.
+
+INDICADORES DE ALERTA (Riesgos a detectar):
+1. Ingeniería Social: Intentos de ganar confianza mediante halagos, regalos (skins/ítems) o falsa amistad.
+2. Ofertas Laborales/Dinero: Promesas de "dinero fácil", "trabajo", "pagos rápidos", "transporte de paquetes".
+3. Secretismo: Instrucciones de no contarle a los padres, borrar conversaciones, "esto es entre nosotros".
+4. Migración de Plataforma: Urgencia por pasar la conversación a canales privados (WhatsApp, Telegram, Discord privado).
+5. Solicitudes físicas: Pedir ubicación, fotos de calles/casas, o invitaciones a reunirse fuera del juego.
+
+REGLAS DE OPERACIÓN:
+- Sé conservador: ante la duda, clasifica como "medium" y "warn".
+- Ignora el "trash talk" competitivo típico de los juegos (ej: "eres malo", "te gané").
+- Si el patrón de conversación muestra escalamiento gradual, clasifica el mensaje actual más severamente.
+- Respuesta ÚNICAMENTE en JSON válido, sin texto extra.
+
+ESTRUCTURA DEL JSON:
+{
+  "risk": boolean,
+  "level": "low" | "medium" | "high",
+  "reason": "String corto (max 100 caracteres) explicando el indicador detectado",
+  "action": "block" | "warn" | "allow"
+}"""
+
+
+def _parse_llm_response(raw: str) -> AnalysisResult:
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    data = json.loads(raw.strip())
+    return AnalysisResult(
+        risk=data["risk"],
+        level=RiskLevel(data["level"]),
+        reason=data["reason"][:100],
+        action=Action(data["action"]),
+    )
+
+
+def _call_openai_compat(prompt: str, base_url: str, api_key: str, model: str) -> AnalysisResult:
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+        "max_tokens": 128,
+        "temperature": 0.0,
+    }
+    resp = httpx.post(
+        f"{base_url}/chat/completions",
+        json=payload,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    return _parse_llm_response(resp.json()["choices"][0]["message"]["content"])
+
+
+def analyze_with_groq(prompt: str) -> AnalysisResult:
+    return _call_openai_compat(
+        prompt,
+        base_url="https://api.groq.com/openai/v1",
+        api_key=settings.groq_api_key,
+        model="llama-3.1-8b-instant",
+    )
+
+
+def analyze_with_nvidia(prompt: str) -> AnalysisResult:
+    return _call_openai_compat(
+        prompt,
+        base_url="https://integrate.api.nvidia.com/v1",
+        api_key=settings.nvidia_api_key,
+        model="meta/llama-3.1-70b-instruct",
+    )
+
+
+def analyze_with_claude(prompt: str) -> AnalysisResult:
+    import anthropic
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=128,
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return _parse_llm_response(response.content[0].text)
+
+
+def _call_llm_with_fallback(prompt: str) -> AnalysisResult:
+    """Try primary provider, fall back to next available on failure."""
+    providers_in_order = []
+
+    primary = settings.llm_provider
+    if primary == "groq":
+        providers_in_order = [
+            ("groq", analyze_with_groq),
+            ("nvidia", analyze_with_nvidia) if settings.nvidia_api_key else None,
+            ("anthropic", analyze_with_claude) if settings.anthropic_api_key else None,
+        ]
+    elif primary == "nvidia":
+        providers_in_order = [
+            ("nvidia", analyze_with_nvidia),
+            ("groq", analyze_with_groq) if settings.groq_api_key else None,
+        ]
+    else:
+        providers_in_order = [
+            ("anthropic", analyze_with_claude),
+            ("groq", analyze_with_groq) if settings.groq_api_key else None,
+        ]
+
+    providers_in_order = [p for p in providers_in_order if p is not None]
+    last_err = None
+
+    for name, fn in providers_in_order:
+        try:
+            return fn(prompt)
+        except Exception as e:
+            last_err = e
+            continue
+
+    # All providers failed — conservative fallback, do not silently allow
+    raise RuntimeError(f"All LLM providers failed. Last error: {last_err}")
+
+
+def analyze_message(
+    message: str,
+    game_id: str = "",
+    session_id: str = "",
+    player_id: str = "",
+    target_id: str = "",
+) -> AnalysisResult:
+    """
+    Full two-tier pipeline with conversation context.
+
+    Tier 1 — regex pre-filter (0ms, no network)
+    Tier 2 — LLM with conversation history from Redis
+    """
+    # Tier 1: instant rule check on raw message
+    fast = prefilter(message)
+    if fast is not None:
+        return fast
+
+    # Build context-aware prompt if session info provided
+    if game_id and session_id and player_id and target_id:
+        from context import format_context_for_llm, has_escalating_pattern
+
+        prompt = format_context_for_llm(game_id, session_id, player_id, target_id, message)
+
+        # Escalation floor: player already flagged 2+ times → force medium minimum
+        if has_escalating_pattern(game_id, session_id, player_id, target_id):
+            result = _call_llm_with_fallback(prompt)
+            if not result.risk and result.level == RiskLevel.low:
+                result = AnalysisResult(
+                    risk=True,
+                    level=RiskLevel.medium,
+                    reason="Patrón escalante: jugador con historial de riesgo",
+                    action=Action.warn,
+                )
+            return result
+    else:
+        prompt = message
+
+    return _call_llm_with_fallback(prompt)
