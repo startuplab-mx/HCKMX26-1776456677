@@ -1,135 +1,112 @@
 import json
 import hashlib
+import time
 from typing import Optional
-from litellm import Router
+import litellm
 from models import AnalysisResult, RiskLevel, Action
 from config import get_settings
 from prefilter import prefilter
 from cleaner import normalizar_texto
 
+litellm.drop_params = True  # ignore unsupported params per provider
+
 settings = get_settings()
 
 _RESULT_CACHE_TTL = 60  # seconds — same player+message reuses result
 
-SYSTEM_PROMPT = """Eres GuardianNode, moderador de chats en videojuegos. Detecta 2 amenazas contra menores:
+SYSTEM_PROMPT = """Eres GuardianNode, sistema de protección de menores en chats de videojuegos. Tu misión es detectar amenazas reales contra menores.
 
-A) RECLUTAMIENTO CRIMINAL: ingeniería social (halagos/regalos/amistad falsa), ofertas dinero/trabajo fácil, secretismo ("no le digas a tus papás"/"borra esto"), migración a otra plataforma (WhatsApp/Telegram/Discord privado), pedir ubicación/fotos/reuniones físicas.
+AMENAZAS A DETECTAR:
 
-B) GROOMING SEXUAL: solicitar fotos/videos íntimos o nudes, propuestas sexuales explícitas, sondeo (virgen/pareja/experiencia sexual), elogios corporales con intención sexual, preguntar si está solo/si sus padres están, extorsión con fotos.
+A) RECLUTAMIENTO CRIMINAL (cárteles mexicanos):
+- Ofertas de trabajo/dinero fácil: "hay jale", "te pago bien", "ganas bien", "solo llevas algo"
+- Reclutamiento directo: "el patrón/jefe quiere hablar", "únete al equipo", "la organización te necesita"
+- Secretismo: "no le digas a tus papás", "borra este mensaje", "esto es entre nosotros"
+- Migración fuera del juego: "escríbeme al WhatsApp/Telegram/Discord", "te mando mi número"
+- Pedir ubicación física: "¿dónde vives?", "¿de qué colonia eres?", "podemos vernos"
+- Normalización criminal: glorificar cartel como aspiracional, "todos lo hacen", "así se vive bien"
+
+B) GROOMING SEXUAL:
+- Solicitar imágenes: "mándame fotos", "muéstrate en cámara", "nudes", "una foto tuya"
+- Propuestas sexuales: cualquier referencia sexual explícita hacia el menor
+- Sondeo: preguntar si es virgen, si tiene pareja, sobre experiencias sexuales
+- Elogios corporales con intención: "qué bonito/a cuerpo", "debes estar muy bueno/a"
+- Aislar: "¿estás solo/a?", "¿tus papás están en casa?", "¿tienes privacidad?"
+- Extorsión: "si no me mandas fotos, le digo a todos", chantaje con imágenes
 
 CÓDIGOS CÁRTELES MX:
-🍕/chapizza/CH🍕=Sinaloa | 🐓/mencho/el gallo=CJNG | 🆖/4L/NG/4letras/cuatro letras=CJNG | 🍇/unión/tepito=Unión Tepito | 🥷=operador | 🧿=la maña
-la empresa/organización/plebada=cártel | jale bueno=trabajo criminal | halcón=vigilancia | burrero/mula=droga | sicario=asesino | alivianar=pagar criminal
-#4letras #mencho #nuevageneración=CJNG | #gentedelmz #mayozambada=CDS | #maña #belicones=general
+🍕/chapizza=Sinaloa | 🐓/mencho/el gallo/🆖/4L/NG=CJNG | 🍇/unión/tepito=Unión Tepito | 🥷=operador
+la empresa/organización/plebada/compañía=cártel | jale bueno/buen jale=trabajo criminal
+halcón/halconeo=vigilancia para cartel | burrero/mula/brincar el charco=transporte drogas
+sicario=asesino | plaza=territorio cartel | la línea=comunicación cartel
 
-REGLAS:
-- Duda → medium+warn. Grooming+menor confirmado → high+block inmediato.
-- Evalúa SOLO intención de JUGADOR_A en MENSAJE NUEVO. No atribuyas riesgo de JUGADOR_B a JUGADOR_A.
-- JUGADOR_A rechaza con "no"/"no quiero"/"pff"/"osh" → NO es riesgo.
-- Preguntas recíprocas ("¿y tú?") tras pregunta personal de JUGADOR_B = respuesta social normal.
-- NO son riesgo: jale=halar objeto en juego, rifado=cool, carnal/bro/cuate=amigo, neta=verdad, ¿cuántos años? sin seguimiento, preguntas de ping/rank/servidor/cuenta.
-- Números solos ("4000","500") → riesgo solo si contexto explícito de oferta criminal.
-- "reason" describe SOLO el MENSAJE NUEVO (<100 chars). Riesgo por patrón → "Patrón: [descripción breve]".
+CRITERIOS DE DECISIÓN:
+- BLOCK (high): grooming sexual explícito, oferta criminal directa, secretismo + menor, solicitud de ubicación física
+- WARN (medium): señales ambiguas de reclutamiento, migración a otra plataforma, preguntas de sondeo, cualquier duda
+- ALLOW (low): conversación normal de videojuego, palabras de jerga sin contexto criminal
 
-Responde ÚNICAMENTE: {"risk":bool,"level":"low|medium|high","reason":"...","action":"block|warn|allow"}"""
+FALSOS POSITIVOS — NO son riesgo:
+- jale = halar objeto en juego (sin contexto de dinero/trabajo)
+- rifado/chido/neta/carnal/bro/cuate = jerga juvenil normal
+- ¿cuántos años tienes? solo, sin seguimiento sexual o criminal
+- preguntas de ping/lag/rank/servidor/cuenta del juego
+- números sueltos sin contexto de oferta (500, 4000)
+- JUGADOR_A dice "no"/"no quiero"/"paso" = NO es riesgo, es rechazo
+
+REGLA CRÍTICA: Si hay duda → usa medium+warn. Es mejor una alerta falsa que dejar pasar abuso.
+Evalúa SOLO la intención de JUGADOR_A en el MENSAJE NUEVO. No atribuyas riesgo de JUGADOR_B a JUGADOR_A.
+
+Responde ÚNICAMENTE con JSON válido (sin texto extra):
+{"risk":bool,"level":"low|medium|high","reason":"descripción breve max 100 chars","action":"block|warn|allow"}"""
 
 
 def _real_key(k: str) -> bool:
     return bool(k) and k not in ("", "nvapi-...", "sk-ant-...") and "..." not in k
 
 
-def _build_router() -> Router:
-    """Build LiteLLM Router with all available providers."""
-    model_list = []
+# Provider waterfall: best quality first, small/fast models as fallbacks
+# Each entry: (litellm_model_string, api_key_getter, extra_params)
+def _build_provider_list() -> list[dict]:
+    providers = []
 
-    if _real_key(settings.groq_api_key):
-        model_list.append({
-            "model_name": "guardian-pool",
-            "litellm_params": {
-                "model": "groq/llama-3.1-8b-instant",
-                "api_key": settings.groq_api_key,
-                "max_tokens": 128,
-                "temperature": 0.0,
-            },
+    if _real_key(settings.google_api_key):
+        providers.append({
+            "model": "gemini/gemini-2.0-flash",
+            "api_key": settings.google_api_key,
         })
 
     if _real_key(settings.cerebras_api_key):
-        model_list.append({
-            "model_name": "guardian-pool",
-            "litellm_params": {
-                "model": "cerebras/llama3.1-70b",
-                "api_key": settings.cerebras_api_key,
-                "max_tokens": 128,
-                "temperature": 0.0,
-            },
-        })
-
-    if _real_key(settings.google_api_key):
-        model_list.append({
-            "model_name": "guardian-pool",
-            "litellm_params": {
-                "model": "gemini/gemini-2.0-flash",
-                "api_key": settings.google_api_key,
-                "max_tokens": 128,
-                "temperature": 0.0,
-            },
+        providers.append({
+            "model": "cerebras/llama3.1-70b",
+            "api_key": settings.cerebras_api_key,
         })
 
     if _real_key(settings.together_api_key):
-        model_list.append({
-            "model_name": "guardian-pool",
-            "litellm_params": {
-                "model": "together_ai/meta-llama/Llama-4-Scout-17B-16E-Instruct",
-                "api_key": settings.together_api_key,
-                "max_tokens": 128,
-                "temperature": 0.0,
-            },
-        })
-
-    if _real_key(settings.nvidia_api_key):
-        model_list.append({
-            "model_name": "guardian-pool",
-            "litellm_params": {
-                "model": "openai/meta/llama-3.1-8b-instruct",
-                "api_base": "https://integrate.api.nvidia.com/v1",
-                "api_key": settings.nvidia_api_key,
-                "max_tokens": 128,
-                "temperature": 0.0,
-            },
+        providers.append({
+            "model": "together_ai/meta-llama/Llama-4-Scout-17B-16E-Instruct",
+            "api_key": settings.together_api_key,
         })
 
     if _real_key(settings.anthropic_api_key):
-        model_list.append({
-            "model_name": "guardian-pool",
-            "litellm_params": {
-                "model": "claude-haiku-4-5-20251001",
-                "api_key": settings.anthropic_api_key,
-                "max_tokens": 128,
-                "temperature": 0.0,
-            },
+        providers.append({
+            "model": "claude-haiku-4-5-20251001",
+            "api_key": settings.anthropic_api_key,
         })
 
-    if not model_list:
-        raise RuntimeError("No LLM providers configured. Set at least one API key in .env")
+    if _real_key(settings.groq_api_key):
+        providers.append({
+            "model": "groq/llama-3.1-8b-instant",
+            "api_key": settings.groq_api_key,
+        })
 
-    return Router(
-        model_list=model_list,
-        routing_strategy="latency-based-routing",
-        num_retries=2,
-        retry_after=1,
-        allowed_fails=1,
-        cooldown_time=30,
-    )
+    if _real_key(settings.nvidia_api_key):
+        providers.append({
+            "model": "openai/meta/llama-3.1-8b-instruct",
+            "api_key": settings.nvidia_api_key,
+            "api_base": "https://integrate.api.nvidia.com/v1",
+        })
 
-
-_router: Optional[Router] = None
-
-
-def _get_router() -> Router:
-    global _router
-    if _router is None:
-        _router = _build_router()
-    return _router
+    return providers
 
 
 _SAFE_FALLBACK = AnalysisResult(
@@ -185,10 +162,35 @@ def _call_llm_with_fallback(prompt: str, system_override: Optional[str] = None) 
         {"role": "system", "content": system},
         {"role": "user", "content": _wrap_prompt(prompt)},
     ]
+    providers = _build_provider_list()
+    if not providers:
+        raise RuntimeError("No LLM providers configured — set at least one API key in .env")
 
-    router = _get_router()
-    response = router.completion(model="guardian-pool", messages=messages)
-    return _parse_llm_response(response.choices[0].message.content)
+    last_err = None
+    for p in providers:
+        kwargs = {
+            "model": p["model"],
+            "messages": messages,
+            "max_tokens": 200,
+            "temperature": 0.0,
+            "api_key": p["api_key"],
+        }
+        if "api_base" in p:
+            kwargs["api_base"] = p["api_base"]
+
+        for attempt in range(2):
+            try:
+                response = litellm.completion(**kwargs)
+                return _parse_llm_response(response.choices[0].message.content)
+            except Exception as e:
+                last_err = e
+                is_429 = "429" in str(e) or "rate" in str(e).lower()
+                if is_429 and attempt == 0:
+                    time.sleep(1)
+                    continue
+                break  # non-429 error or second attempt → try next provider
+
+    raise RuntimeError(f"All LLM providers failed. Last: {last_err}")
 
 
 def _cache_key(player_id: str, message: str) -> str:
