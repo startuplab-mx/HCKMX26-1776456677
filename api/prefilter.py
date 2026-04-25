@@ -160,6 +160,7 @@ _WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
 
 
 # ── Cartel recruitment — social media specific ────────────────────────────────
+# Source: Constanza Nuche — "Reclutamiento Digital" (TikTok ethnography, Mexico)
 
 _CARTEL_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
     # Direct recruitment + cartel language
@@ -169,64 +170,133 @@ _CARTEL_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
         re.IGNORECASE
     ), "Reclutamiento directo por organización criminal"),
 
+    # "4L" / "4 letras" / "cuatro letras" = CJNG identifier (fuente: PDF)
     (re.compile(
-        r"\b(burrer[oa]|mula|halcón|halcon|sicario|plaza|jale\s+bueno|buen\s+jale)\b.{0,50}"
-        r"\b(trabajo|chamba|ganar|lana|feria|billete)\b",
+        r"\b(únete\s+a\s+(las?\s+)?4\s*l|4\s*letras|cuatro\s+letras|"
+        r"jalense\s+a\s+laborar.{0,20}4\s*l|"
+        r"empleo\s+con\s+la\s+plebada|la\s+plebada\s+de\s+\w+)\b",
+        re.IGNORECASE
+    ), "Reclutamiento CJNG (4L/cuatro letras)"),
+
+    # Exact cartel recruitment phrases from real evidence (PDF pág. 13-15)
+    (re.compile(
+        r"(únete\s+a\s+la\s+(empresa|organización)|"
+        r"estamos\s+buscando\s+gente|"
+        r"se\s+te\s+da\s+(ropa|comida|adiestramiento|hospedaje)|"
+        r"más\s+info\s+al\s+priv|"
+        r"si\s+te\s+agarran.{0,30}no\s+me\s+conoces|"
+        r"jamás\s+nos\s+conocimos)",
+        re.IGNORECASE
+    ), "Frase real de reclutamiento criminal"),
+
+    # Slang: halconeo, burrero, sicariato
+    (re.compile(
+        r"\b(burrer[oa]|mula|halcón|halcon|halconeo|sicario|sicariato|plaza|"
+        r"jale\s+bueno|buen\s+jale|el\s+jale)\b.{0,50}"
+        r"\b(trabajo|chamba|ganar|lana|feria|billete|paga|sueldo)\b",
         re.IGNORECASE
     ), "Slang cartel asociado a oferta laboral"),
 
+    # Border/trafficking offers
     (re.compile(
-        r"\b(cruzar|brincar\s+el\s+charco|pasar\s+al\s+otro\s+lado)\b.{0,40}"
-        r"\b(cositas|paquete|encomienda|algo\s+pequeño|mercancía|fardos?)\b",
+        r"\b(cruzar|brincar\s+el\s+charco|pasar\s+al\s+otro\s+lado|"
+        r"brincar\s+la\s+barda)\b.{0,40}"
+        r"\b(cositas|paquete|encomienda|algo\s+pequeño|mercancía|fardos?|"
+        r"mota|cristal|polvo)\b",
         re.IGNORECASE
     ), "Oferta de tráfico/transporte ilícito"),
 
+    # Specific pay offer for criminal activity
     (re.compile(
         r"\b(te\s+doy|te\s+pago|gana[rs]?)\s+\$?\d[\d,\.]*\s*(k|mil|pesos|dolares|usd)?\b.{0,60}"
-        r"\b(al\s+día|por\s+viaje|por\s+cruce|semanal|diario)\b",
+        r"\b(al\s+día|por\s+viaje|por\s+cruce|semanal|diario|por\s+semana)\b",
         re.IGNORECASE
-    ), "Oferta de pago específico por actividad criminal"),
+    ), "Oferta de pago por actividad criminal"),
+
+    # "alivianar" = pagar/ayudar criminalmente
+    (re.compile(
+        r"\b(te\s+alivian[ao]|yo\s+te\s+alivian[ao])\b.{0,40}"
+        r"\b(semana|quincena|rápido|pronto|ahorita)\b",
+        re.IGNORECASE
+    ), "Oferta de pago con slang criminal (alivianar)"),
 ]
 
 _CARTEL_WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
-    # Luxury bait
+    # Luxury aspiration bait (PDF: "nacimos pobres tenemos que morirnos podridos en dinero")
     (re.compile(
         r"\b(así\s+se\s+vive|quieres\s+vivir\s+así|mira\s+cómo\s+(se\s+)?viv[eo]|"
-        r"tú\s+también\s+puedes\s+(tener|vivir)|carros?\s+y\s+(lana|dinero|feria))\b",
+        r"tú\s+también\s+puedes\s+(tener|vivir)|carros?\s+y\s+(lana|dinero|feria)|"
+        r"salir\s+adelante\s+(rápido|pronto)|nacimos\s+pobres)\b",
         re.IGNORECASE
-    ), "Cebo de lujo — patrón de reclutamiento cartel"),
+    ), "Cebo aspiracional — patrón de reclutamiento cartel"),
 
+    # Normalization of crime
     (re.compile(
-        r"\b(el\s+que\s+no\s+arriesga\s+no\s+gana|todos\s+lo\s+hacen|es\s+lo\s+normal\s+(aquí|en\s+el\s+rancho|en\s+la\s+colonia))\b",
+        r"\b(el\s+que\s+no\s+arriesga\s+no\s+gana|todos\s+lo\s+hacen|"
+        r"es\s+lo\s+normal\s+(aquí|en\s+el\s+rancho|en\s+la\s+colonia)|"
+        r"o\s+pierdes\s+el\s+miedo\s+o\s+pierdes\s+la\s+oportunidad|"
+        r"demuestra\s+que\s+s[ií]\s+hay)\b",
         re.IGNORECASE
     ), "Normalización de actividad criminal"),
 
+    # Generic suspicious job offer
     (re.compile(
-        r"\b(hay\s+(buen\s+)?trabajo|te\s+ofrezco\s+(chamba|jale)|tengo\s+(trabajo|chamba)\s+para\s+ti)\b",
+        r"\b(hay\s+(buen\s+)?trabajo|te\s+ofrezco\s+(chamba|jale)|"
+        r"tengo\s+(trabajo|chamba)\s+para\s+ti|"
+        r"pidan\s+información.{0,30}empleo|"
+        r"ánimo\s+plebada.{0,30}laborar)\b",
         re.IGNORECASE
-    ), "Oferta laboral sospechosa en redes"),
+    ), "Oferta laboral sospechosa con lenguaje cartel"),
+
+    # Cartel hashtags (PDF pág. 7-8)
+    (re.compile(
+        r"#(nuevageneración|nuevageneracion|4letras|4l\b|ng\b|mencho|mecho|"
+        r"señormencho|senormencho|ElSeñorDeLosGallos|"
+        r"gentedelmz|mayozambada|operativamz|gentedelmayozambada|"
+        r"maña|mana|trabajoparalamaña|belicones|fracesbelicas|"
+        r"makabelico|ondeado|victormendivil)",
+        re.IGNORECASE
+    ), "Hashtag vinculado a cártel (CJNG/CDS/General)"),
 ]
 
+# ── Emoji cartel codes (fuente: Reclutamiento Digital — Constanza Nuche) ──────
+# 🍕 = Chapiza / Cártel de Sinaloa ("CH🍕" = Chapizza)
+# 🐓 = CJNG / El Señor de los Gallos (Nemesio Oseguera "El Mencho")
+# 🆖 = CJNG Nueva Generación (frecuente tras el número 4: "4🆖")
+# 🍇 = Unión Tepito (CDMX)
+# 🥷 = operador de cártel encapuchado
+# 😈👹 = identidad criminal / glorificación
+# 🧿 = "la maña" (referencia general al crimen organizado)
 
-def prefilter_social(message: str) -> AnalysisResult | None:
-    """Cartel/social-media specific patterns — runs after base prefilter."""
-    for pattern, reason in _CARTEL_BLOCK_PATTERNS:
-        if pattern.search(message):
-            return AnalysisResult(
-                risk=True,
-                level=RiskLevel.high,
-                reason=reason,
-                action=Action.block,
-            )
-    for pattern, reason in _CARTEL_WARN_PATTERNS:
-        if pattern.search(message):
-            return AnalysisResult(
-                risk=True,
-                level=RiskLevel.medium,
-                reason=reason,
-                action=Action.warn,
-            )
-    return None
+# Emoji combos that signal cartel affiliation + recruitment context
+_EMOJI_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
+    # Cartel emoji + recruitment verb = BLOCK
+    (re.compile(
+        r"(únete|jálate|jalense|busca(mos|n)|empleo|trabajo|chamba|laborar|info\s+al\s+priv)"
+        r".{0,60}"
+        r"(🍕|🐓|🆖|🍇|🥷|😈|👹)",
+        re.IGNORECASE
+    ), "Emoji cartel + llamado a reclutamiento"),
+
+    (re.compile(
+        r"(🍕|🐓|🆖|🍇|🥷|😈|👹)"
+        r".{0,60}"
+        r"(únete|jálate|jalense|busca(mos|n)|empleo|trabajo|chamba|laborar|info\s+al\s+priv)",
+        re.IGNORECASE
+    ), "Emoji cartel + llamado a reclutamiento"),
+
+    # "CH🍕" = Chapizza (Cártel de Sinaloa facción Chapo) + recruitment
+    (re.compile(r"ch\s*🍕", re.IGNORECASE), "Referencia directa Chapizza (CDS)"),
+
+    # "4🆖" = CJNG Nueva Generación
+    (re.compile(r"4\s*🆖"), "Referencia directa CJNG (4NG)"),
+]
+
+_EMOJI_WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
+    # Multiple cartel emojis alone = identity signaling
+    (re.compile(r"(🍕|🐓|🆖|🍇|🥷|😈|👹|🧿).{0,30}(🍕|🐓|🆖|🍇|🥷|😈|👹|🧿)"),
+     "Combinación de emojis asociados a cárteles"),
+]
 
 
 def prefilter(message: str) -> AnalysisResult | None:
@@ -234,37 +304,48 @@ def prefilter(message: str) -> AnalysisResult | None:
     Returns AnalysisResult if rule fires with high confidence.
     Returns None → message must go to LLM (Tier 2).
 
-    Check order: criminal recruitment blocks → sexual blocks → warn patterns (both types).
+    Check order:
+    1. Criminal recruitment (generic)
+    2. Sexual grooming
+    3. Cartel-specific (slang, hashtags, real phrases)
+    4. Emoji cartel codes
+    5. Warn patterns → LLM
     """
     for pattern, reason in _BLOCK_PATTERNS:
         if pattern.search(message):
-            return AnalysisResult(
-                risk=True,
-                level=RiskLevel.high,
-                reason=reason,
-                action=Action.block,
-            )
+            return AnalysisResult(risk=True, level=RiskLevel.high, reason=reason, action=Action.block)
 
     for pattern, reason in _SEXUAL_BLOCK_PATTERNS:
         if pattern.search(message):
-            return AnalysisResult(
-                risk=True,
-                level=RiskLevel.high,
-                reason=reason,
-                action=Action.block,
-            )
+            return AnalysisResult(risk=True, level=RiskLevel.high, reason=reason, action=Action.block)
+
+    for pattern, reason in _CARTEL_BLOCK_PATTERNS:
+        if pattern.search(message):
+            return AnalysisResult(risk=True, level=RiskLevel.high, reason=reason, action=Action.block)
+
+    for pattern, reason in _EMOJI_BLOCK_PATTERNS:
+        if pattern.search(message):
+            return AnalysisResult(risk=True, level=RiskLevel.high, reason=reason, action=Action.block)
 
     for pattern, reason in _WARN_PATTERNS:
         if pattern.search(message):
-            return AnalysisResult(
-                risk=True,
-                level=RiskLevel.low,
-                reason=reason,
-                action=Action.warn,
-            )
+            return AnalysisResult(risk=True, level=RiskLevel.low, reason=reason, action=Action.warn)
+
+    for pattern, reason in _CARTEL_WARN_PATTERNS:
+        if pattern.search(message):
+            return AnalysisResult(risk=True, level=RiskLevel.medium, reason=reason, action=Action.warn)
+
+    for pattern, reason in _EMOJI_WARN_PATTERNS:
+        if pattern.search(message):
+            return AnalysisResult(risk=True, level=RiskLevel.medium, reason=reason, action=Action.warn)
 
     for pattern, reason in _SEXUAL_WARN_PATTERNS:
         if pattern.search(message):
             return None  # LLM confirms sexual intent
 
     return None  # Ambiguous → LLM
+
+
+def prefilter_social(message: str) -> AnalysisResult | None:
+    """Legacy alias — kept for backward compatibility."""
+    return prefilter(message)

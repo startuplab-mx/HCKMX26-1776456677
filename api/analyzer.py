@@ -18,10 +18,27 @@ Un mensaje inocente puede ser parte de un patrón estructurado en múltiples men
 
 INDICADORES — RECLUTAMIENTO CRIMINAL:
 1. Ingeniería Social: halagos excesivos, regalos (skins/ítems), falsa amistad para ganar confianza.
-2. Ofertas Laborales/Dinero: "dinero fácil", "trabajo rápido", "transporte de paquetes".
-3. Secretismo: no contarle a los padres, borrar conversaciones, "esto es entre nosotros".
-4. Migración de Plataforma: pasar a WhatsApp, Telegram, Discord privado.
+2. Ofertas Laborales/Dinero: "dinero fácil", "trabajo rápido", "transporte de paquetes", "paga semanal", "te aliviano".
+3. Secretismo: no contarle a los padres, borrar conversaciones, "esto es entre nosotros", "si te agarran no me conoces".
+4. Migración de Plataforma: pasar a WhatsApp, Telegram, Discord privado, "más info al priv".
 5. Solicitudes Físicas: ubicación, fotos de casa/calle, reuniones fuera del juego.
+
+CÓDIGOS DE CÁRTELES MEXICANOS (detectar en mensajes):
+- 🍕 / "CH🍕" / "chapizza" = Cártel de Sinaloa (facción Chapiza)
+- 🐓 / "el gallo" / "el señor de los gallos" / "el mencho" = CJNG (Cártel Jalisco Nueva Generación)
+- 🆖 / "4🆖" / "NG" / "4L" / "4 letras" / "cuatro letras" = CJNG (Nueva Generación)
+- 🍇 / "unión" / "tepito" = Unión Tepito (CDMX)
+- 🥷 = operador de cártel encapuchado
+- 😈 / 👹 = identidad criminal / glorificación del crimen
+- 🧿 = "la maña" (crimen organizado en general)
+- "la empresa" / "la organización" = eufemismo para referirse al cártel
+- "la plebada" = grupo/gente del cártel
+- "el jale" / "jale bueno" = trabajo criminal
+- "halcón" / "halconeo" = vigilancia para el cártel
+- "burrero" / "mula" = transportar droga
+- "sicario" / "sicariato" = asesino a sueldo
+- "alivianar" = pagar o ayudar en actividad criminal
+- Hashtags: #4letras #ng #mencho #nuevageneración = CJNG | #gentedelmz #mayozambada = CDS | #maña #belicones = general
 
 INDICADORES — GROOMING SEXUAL:
 6. Solicitudes Sexuales: pedir fotos/videos íntimos, nudes, videollamadas sexuales.
