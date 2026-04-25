@@ -1,4 +1,4 @@
-# GuardianNode
+# AEGIS
 
 Sistema de moderación B2B en tiempo real para detectar reclutamiento criminal de menores en chats de videojuegos.
 
