@@ -276,10 +276,9 @@ def analyze_message(
         return fast_raw                        # raw hit — block/warn on literal text
     if fast_clean is not None and fast_clean.risk:
         return fast_clean                      # clean hit — obfuscated input caught
-    if fast_raw is not None:
-        return fast_raw                        # both gave allow → return allow
-    if fast_clean is not None:
-        return fast_clean                      # raw=None, clean=allow → return clean
+    # Only skip LLM if BOTH returned allow — if either is None, go to LLM
+    if fast_raw is not None and fast_clean is not None:
+        return fast_raw                        # both gave allow → safe
 
     # Tier 1.5: result cache — skip LLM for repeated message+player within 60s
     if player_id:

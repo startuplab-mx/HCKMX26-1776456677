@@ -232,6 +232,12 @@ _CARTEL_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
         re.IGNORECASE
     ), "Oferta de drogas"),
 
+    # Trafficking intent
+    (re.compile(
+        r"\b(necesito|quiero|voy\s+a|puedo)\s+(traficar|trafic\w+)\b",
+        re.IGNORECASE
+    ), "Intención de tráfico ilícito"),
+
     # "4L" / "4 letras" / "cuatro letras" = CJNG identifier (fuente: PDF)
     (re.compile(
         r"\b(únete\s+a\s+(las?\s+)?4\s*l|4\s*letras|cuatro\s+letras|"
@@ -336,6 +342,16 @@ _CARTEL_WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
         r"makabelico|ondeado|victormendivil)",
         re.IGNORECASE
     ), "Hashtag vinculado a cártel (CJNG/CDS/General)"),
+
+    # Standalone cartel name mentions (without # — still suspicious in chat)
+    (re.compile(
+        r"\b(cjng|chapiza|chapizza|mayo\s+zambada|el\s+mencho|mencho|"
+        r"beli[ck]ones?|la\s+ma[nñ]a|sinaloa\b|nueva\s+generaci[oó]n)\b",
+        re.IGNORECASE
+    ), "Referencia directa a cártel mexicano"),
+
+    # "4l" / "4 l" standalone = CJNG "4 Letras" code
+    (re.compile(r"\b4\s*l\b", re.IGNORECASE), "Código CJNG (4L = cuatro letras)"),
 ]
 
 # ── Emoji cartel codes (fuente: Reclutamiento Digital — Constanza Nuche) ──────
@@ -403,21 +419,21 @@ _SAFE_PASS = re.compile(
     re.IGNORECASE
 )
 
-# Short purely-alphabetic messages (≤25 chars) with no suspicious structure → allow
-# Avoids sending "si we", "bien bien y tu?", "que te digo" to LLM
+# Short purely-alphabetic messages (≤12 chars only) — only catch trivial greetings like "si", "ok"
 _SHORT_SAFE = re.compile(
-    r"^[\w\s\?\!\.\,áéíóúüñÁÉÍÓÚÜÑ]{1,30}$"
+    r"^[\w\s\?\!\.\,áéíóúüñÁÉÍÓÚÜÑ]{1,12}$"
 )
 
 
 # Keywords that disqualify a short message from being auto-allowed
 _RISK_WORDS = re.compile(
-    r"\b(paga|pago|dinero|lana|feria|trabajo|jale|chamba|patrulla|patrullas|policia|federal|"
+    r"\b(paga|pago|dinero|lana|feria|trabajo|traficar|traficando|jale|chamba|patrulla|patrullas|policia|federal|"
     r"discord|whatsapp|telegram|pasate|nude|nudes|foto|fotos|camara|numero|cel|celular|"
     r"solo|sola|solito|solita|solos|edad|cuantos|anos|ubicacion|direccion|domicilio|"
-    r"avisame|avisa|vigila|checa|halcon|halcanazo|sicario|burrero|cartel|plaza|"
+    r"avisame|avisa|vigila|checa|halcon|halcanazo|sicario|burrero|cartel|plaza|4l|"
     r"droga|mota|cristal|coca|chiva|foco|"
-    r"sexo|sexual|pene|pito|verga|culo|culos|nalga|nalgas|culito|"
+    r"cjng|mencho|chapiza|chapizza|sinaloa|mana|belicones|belico|zambada|"
+    r"sexo|sexual|pene|pito|verga|pilin|culo|culos|nalga|nalgas|culito|"
     r"tetas|butt|dick|cock|pussy|porn|phub|onlyfans|hub)\b",
     re.IGNORECASE
 )
