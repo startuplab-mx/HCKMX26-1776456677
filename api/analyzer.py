@@ -115,7 +115,7 @@ def analyze_with_groq(prompt: str, system: str | None = None) -> AnalysisResult:
         prompt,
         base_url="https://api.groq.com/openai/v1",
         api_key=settings.groq_api_key,
-        model="llama-3.3-70b-versatile",
+        model="llama-3.1-8b-instant",
         system=system,
     )
 
@@ -147,21 +147,24 @@ def _call_llm_with_fallback(prompt: str, system_override: str | None = None) -> 
     providers_in_order = []
 
     primary = settings.llm_provider
+    def _real_key(k: str) -> bool:
+        return bool(k) and not k.startswith("nvapi-...") and not k.startswith("sk-ant-...")
+
     if primary == "groq":
         providers_in_order = [
             ("groq", analyze_with_groq),
-            ("nvidia", analyze_with_nvidia) if settings.nvidia_api_key else None,
-            ("anthropic", analyze_with_claude) if settings.anthropic_api_key else None,
+            ("nvidia", analyze_with_nvidia) if _real_key(settings.nvidia_api_key) else None,
+            ("anthropic", analyze_with_claude) if _real_key(settings.anthropic_api_key) else None,
         ]
     elif primary == "nvidia":
         providers_in_order = [
             ("nvidia", analyze_with_nvidia),
-            ("groq", analyze_with_groq) if settings.groq_api_key else None,
+            ("groq", analyze_with_groq) if _real_key(settings.groq_api_key) else None,
         ]
     else:
         providers_in_order = [
             ("anthropic", analyze_with_claude),
-            ("groq", analyze_with_groq) if settings.groq_api_key else None,
+            ("groq", analyze_with_groq) if _real_key(settings.groq_api_key) else None,
         ]
 
     providers_in_order = [p for p in providers_in_order if p is not None]
