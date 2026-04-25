@@ -5,6 +5,7 @@ Reuses the core two-tier pipeline with platform-aware context injection.
 from models import SocialMediaIn, AnalysisResult, RiskLevel, Action
 from prefilter import prefilter, prefilter_social
 from analyzer import _call_llm_with_fallback
+from cleaner import normalizar_texto
 
 SOCIAL_SYSTEM_PROMPT = """Eres el motor de análisis de AEGIS, sistema de protección de menores en redes sociales.
 
@@ -144,17 +145,17 @@ def _apply_account_risk_floor(
 def analyze_social(payload: SocialMediaIn) -> AnalysisResult:
     """
     Two-tier pipeline for social media comments.
-    Tier 1 — prefilter (regex, 0ms)
+    Tier 0 — normalize (leet, dots, spaces)
+    Tier 1 — prefilter (regex, 0ms) on raw + cleaned
     Tier 2 — LLM with full platform context
     """
-    fast = prefilter(payload.comment)
+    clean = normalizar_texto(payload.comment)
+
+    fast = prefilter(payload.comment) or prefilter(clean)
     if fast is not None:
         return _apply_account_risk_floor(fast, payload)
 
-    fast_social = prefilter_social(payload.comment)
-    if fast_social is not None:
-        return _apply_account_risk_floor(fast_social, payload)
-
+    # prefilter_social is an alias — skip duplicate call, use clean version only
     prompt = _build_social_prompt(payload)
     result = _call_llm_with_fallback(prompt, system_override=SOCIAL_SYSTEM_PROMPT)
     return _apply_account_risk_floor(result, payload)
