@@ -5,6 +5,7 @@ import { DashboardPanel } from './components/DashboardPanel'
 import { useGameSocket } from './hooks/useGameSocket'
 import { useDashboardSocket } from './hooks/useDashboardSocket'
 import { useAlertNotifications } from './hooks/useAlertNotifications'
+import { useTikTokComments } from './hooks/useTikTokComments'
 import type { ConnectionState } from './types'
 import { LogOut, Shield } from 'lucide-react'
 
@@ -17,6 +18,10 @@ export default function App() {
 function MainView({ conn, onLeave }: { conn: ConnectionState; onLeave: () => void }) {
   const { alerts, stats, fetchStats, addAlert } = useDashboardSocket(conn.serverUrl, conn.roomId)
   const { requestPermission, notify } = useAlertNotifications()
+  const { comments: tiktokComments, loading: tiktokLoading, analyzeComment } = useTikTokComments(
+    conn.serverUrl,
+    'guardiannode-dev-secret'
+  )
   const prevCount = useRef(0)
 
   useEffect(() => { requestPermission() }, [requestPermission])
@@ -66,7 +71,15 @@ function MainView({ conn, onLeave }: { conn: ConnectionState; onLeave: () => voi
           <ChatPanel messages={messages} status={status} players={players} onSend={sendMessage} />
         </div>
         <div className="flex-[2] min-w-0 border-l border-gray-800">
-          <DashboardPanel alerts={alerts} stats={stats} onRefreshStats={handleRefreshStats} />
+          <DashboardPanel
+            alerts={alerts}
+            stats={stats}
+            onRefreshStats={handleRefreshStats}
+            messages={messages}
+            tiktokComments={tiktokComments}
+            tiktokLoading={tiktokLoading}
+            onAnalyzeTikTok={analyzeComment}
+          />
         </div>
       </div>
     </div>

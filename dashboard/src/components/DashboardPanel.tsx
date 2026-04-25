@@ -1,12 +1,17 @@
 import { useEffect } from 'react'
 import { ShieldAlert, ShieldX, Shield, TrendingUp, AlertTriangle, CheckCircle, Activity } from 'lucide-react'
-import type { AlertEntry, Stats, RiskLevel } from '../types'
+import type { AlertEntry, Stats, RiskLevel, ChatMessage, TikTokComment } from '../types'
 import { ThreatChart } from './ThreatChart'
+import { SceneToggle } from './SceneToggle'
 
 interface Props {
   alerts: AlertEntry[]
   stats: Stats | null
   onRefreshStats: () => void
+  messages: ChatMessage[]
+  tiktokComments: TikTokComment[]
+  tiktokLoading: boolean
+  onAnalyzeTikTok: (text: string, user: string, likes: number) => void
 }
 
 const LEVEL_CONFIG: Record<RiskLevel, { color: string; bg: string; border: string; icon: React.ReactNode; label: string }> = {
@@ -15,7 +20,7 @@ const LEVEL_CONFIG: Record<RiskLevel, { color: string; bg: string; border: strin
   low:    { color: 'text-gray-400',   bg: 'bg-gray-900',      border: 'border-gray-700',   icon: <Shield size={13} />,     label: 'BAJO' },
 }
 
-export function DashboardPanel({ alerts, stats, onRefreshStats }: Props) {
+export function DashboardPanel({ alerts, stats, onRefreshStats, messages, tiktokComments, tiktokLoading, onAnalyzeTikTok }: Props) {
   useEffect(() => {
     onRefreshStats()
     const id = setInterval(onRefreshStats, 10000)
@@ -29,7 +34,7 @@ export function DashboardPanel({ alerts, stats, onRefreshStats }: Props) {
     <div className="flex flex-col h-full bg-[#0d0d14] overflow-hidden">
 
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <Activity size={14} className="text-green-400" />
           <span className="text-sm font-semibold text-white">Centro de Monitoreo</span>
@@ -38,7 +43,7 @@ export function DashboardPanel({ alerts, stats, onRefreshStats }: Props) {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-3 gap-2 p-3">
+      <div className="grid grid-cols-3 gap-2 p-3 shrink-0">
         <StatCard
           icon={<ShieldX size={16} className="text-red-400" />}
           label="Bloqueados"
@@ -63,12 +68,28 @@ export function DashboardPanel({ alerts, stats, onRefreshStats }: Props) {
       </div>
 
       {/* Threat chart */}
-      <div className="px-3 pb-3">
+      <div className="px-3 pb-3 shrink-0">
         <ThreatChart alerts={alerts} />
       </div>
 
+      {/* Scene toggle — game chat vs tiktok */}
+      <div className="border-t border-gray-800 shrink-0">
+        <div className="px-4 py-2 flex items-center justify-between">
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Simulador de escenas</span>
+        </div>
+      </div>
+      <div className="h-72 shrink-0">
+        <SceneToggle
+          messages={messages}
+          alerts={alerts}
+          tiktokComments={tiktokComments}
+          tiktokLoading={tiktokLoading}
+          onAnalyzeTikTok={onAnalyzeTikTok}
+        />
+      </div>
+
       {/* Alert feed */}
-      <div className="flex items-center justify-between px-4 py-2 border-t border-b border-gray-800">
+      <div className="flex items-center justify-between px-4 py-2 border-t border-b border-gray-800 shrink-0">
         <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Feed en vivo</span>
         {alerts.length > 0 && (
           <span className="text-xs text-gray-600">{alerts.length} evento{alerts.length !== 1 ? 's' : ''}</span>
