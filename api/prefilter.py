@@ -113,6 +113,29 @@ _SEXUAL_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
         r"\b(solos?|sin\s+nadie|en\s+privado|en\s+mi\s+(cuarto|casa|carro|depa))\b",
         re.IGNORECASE
     ), "Invitación a encuentro privado con intención sexual"),
+
+    # Adult platform migration — clear predator signal
+    (re.compile(
+        r"\b(tu\s+(usuario|user|cuenta|perfil|nick)\s+(de|en)\s+)?"
+        r"(pornhub|phub|p\.?hub|onlyfans|of\b|xvideos|xnxx|redtube|"
+        r"chaturbate|fansly|privacy|adulto?s?)\b",
+        re.IGNORECASE
+    ), "Solicitud/referencia a plataforma adulta (grooming)"),
+
+    # Explicit body part comments directed at minor
+    (re.compile(
+        r"\b(qu[eé]\s+(ric[ao]|buen[ao]|lind[ao]|bonit[ao]|hermoso|hermosa)\s+"
+        r"(cul[oi]t?[ao]s?|nalgas?|culo|poto|pompas?|cuerp[ao]|pech[ao]|tetas?|"
+        r"chichi[s]?|butt|ass))\b",
+        re.IGNORECASE
+    ), "Comentario sexual sobre cuerpo del menor"),
+
+    (re.compile(
+        r"\b(cul[oi]t?[ao]s?|nalgas?\s+(rica[s]?|buena[s]?|hermosa[s]?)|"
+        r"tetas?\s+(rica[s]?|grande[s]?|bonita[s]?)|"
+        r"pech[ao]\s+(bueno|lindo|rico))\b",
+        re.IGNORECASE
+    ), "Comentario sexual explícito sobre cuerpo"),
 ]
 
 # ── Sexual grooming — medium-confidence warn ──────────────────────────────────
@@ -129,7 +152,8 @@ _SEXUAL_WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
     # Sexualized body compliments (grooming signal)
     (re.compile(
         r"\b(qué\s+(buen[ao]|ric[ao]|sexy|bonit[ao]|lind[ao])\s+(estás?|eres|te\s+ves)|"
-        r"tienes\s+(buen|lindo|rico)\s+cuerpo|estás\s+(muy\s+)?(buenísim[ao]|riquísim[ao]))\b",
+        r"tienes\s+(buen|lindo|rico)\s+cuerpo|estás\s+(muy\s+)?(buenísim[ao]|riquísim[ao])|"
+        r"qu[eé]\s+(ric[ao]|buen[ao]).{0,20}(cuerp[ao]|piernas?|cara|ojos))\b",
         re.IGNORECASE
     ), "Comentario sexualizado sobre apariencia del menor"),
 
@@ -225,6 +249,23 @@ _CARTEL_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
         r"\b(semana|quincena|rápido|pronto|ahorita)\b",
         re.IGNORECASE
     ), "Oferta de pago con slang criminal (alivianar)"),
+
+    # Halconeo / lookout instructions — "avisa si ves patrullas/policías/federales"
+    (re.compile(
+        r"\b(avisa|checa|fíjate|fijate|cuida|vigila|párate|parate|ponte)\b.{0,30}"
+        r"\b(patrullas?|polic[ií]as?|federales?|militares?|soldados?|"
+        r"la\s+ley|la\s+jura|la\s+tira|la\s+poli|judiciales?|marinos?|"
+        r"retén|reten|bloqueo|operativo|movimiento\s+raro)\b",
+        re.IGNORECASE
+    ), "Instrucción de vigilancia (halconeo)"),
+
+    # "si te agarran / si te cacha" = secretismo criminal
+    (re.compile(
+        r"\b(si\s+te\s+(agarran|cacha[n]?|pescan|detienen)|"
+        r"si\s+(viene|llega)\s+la\s+(ley|poli|tira|jura))\b.{0,40}"
+        r"\b(no\s+(me\s+)?(conoces|saben|digas)|yo\s+no\s+existo|nada\s+que\s+ver)\b",
+        re.IGNORECASE
+    ), "Instrucción de negación/secretismo criminal"),
 ]
 
 _CARTEL_WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
@@ -298,11 +339,54 @@ _EMOJI_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"4\s*🆖"), "Referencia directa CJNG (4NG)"),
 ]
 
+def _has_two_distinct_cartel_emojis(text: str) -> bool:
+    """Require at least 2 DIFFERENT cartel emojis — avoids triple-same-emoji false positive."""
+    cartel = [e for e in "🍕🐓🆖🍇🥷😈👹🧿" if e in text]
+    return len(set(cartel)) >= 2
+
+
 _EMOJI_WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
-    # Multiple cartel emojis alone = identity signaling
-    (re.compile(r"(🍕|🐓|🆖|🍇|🥷|😈|👹|🧿).{0,30}(🍕|🐓|🆖|🍇|🥷|😈|👹|🧿)"),
-     "Combinación de emojis asociados a cárteles"),
+    # Sexual emoji combinations
+    (re.compile(r"(🍑|🍆|💦|🫦).{0,20}(🍑|🍆|💦|🫦)"),
+     "Emojis sexuales explícitos"),
 ]
+
+# Cartel emoji check runs separately via function (not regex) to avoid false positives
+_CARTEL_EMOJI_PRESENCE = re.compile(r"(🍕|🐓|🆖|🍇|🥷|😈|👹|🧿)")
+
+
+# Common safe tokens — clearly benign regardless of context
+_SAFE_PASS = re.compile(
+    r"^\s*(gg|gg\s*wp|nice|lol|xd|jaja+|jeje+|:v|oof|noob|ez|rip|wp|glhf|"
+    r"good\s*game|well\s*played|nice\s*shot|wtf|omg|bruh|"
+    r"hola|hi|hey|hello|buenas|saludos|"
+    r"gracia[s]?|thx|ty|np|de\s*nada|"
+    r"ok|okey|okay|sale|va|vale|"
+    r"sí|si|no|nel|nop|"
+    r"bien|todo\s+bien|bien\s+gracias|"
+    r"que\s+(onda|tal|pasa|hay)|como\s+estas?|como\s+andas?|"
+    r"bro|we|wey|güey|carnal|mano|cuate|"
+    r"jeje+|jaja+|haha+|kk|xd|:(|:D|\^\^)"
+    r")\s*[!?\.]*\s*$",
+    re.IGNORECASE
+)
+
+# Short purely-alphabetic messages (≤25 chars) with no suspicious structure → allow
+# Avoids sending "si we", "bien bien y tu?", "que te digo" to LLM
+_SHORT_SAFE = re.compile(
+    r"^[\w\s\?\!\.\,áéíóúüñÁÉÍÓÚÜÑ]{1,30}$"
+)
+
+
+# Keywords that disqualify a short message from being auto-allowed
+_RISK_WORDS = re.compile(
+    r"\b(paga|pago|dinero|lana|feria|trabajo|jale|chamba|patrulla|policia|federal|"
+    r"discord|whatsapp|telegram|pasate|nude|foto|camara|solo|solos|"
+    r"avisame|avisa|vigila|checa|halcon|sicario|burrero|cartel|plaza|"
+    r"sexo|sexual|pene|pito|verga|culo|culos|nalga|nalgas|culito|"
+    r"tetas|chichi|butt|dick|cock|pussy|porn|phub|onlyfans|hub)\b",
+    re.IGNORECASE
+)
 
 
 def prefilter(message: str) -> AnalysisResult | None:
@@ -310,6 +394,14 @@ def prefilter(message: str) -> AnalysisResult | None:
     Runs all patterns against both original and accent-normalized text.
     Returns AnalysisResult on match, None → pass to LLM.
     """
+    # Fast-pass 1: known safe tokens
+    if _SAFE_PASS.match(message):
+        return AnalysisResult(risk=False, level=RiskLevel.low, reason="Expresión de juego segura", action=Action.allow)
+
+    # Fast-pass 2: short messages (≤30 chars) without any risk keywords
+    if len(message) <= 30 and _SHORT_SAFE.match(message) and not _RISK_WORDS.search(message):
+        return AnalysisResult(risk=False, level=RiskLevel.low, reason="Mensaje corto sin indicadores de riesgo", action=Action.allow)
+
     msg_norm = _normalize(message)
 
     def _check(patterns: list, level: RiskLevel, action: Action) -> AnalysisResult | None:
@@ -317,6 +409,15 @@ def prefilter(message: str) -> AnalysisResult | None:
             if pattern.search(message) or pattern.search(msg_norm):
                 return AnalysisResult(risk=True, level=level, reason=reason, action=action)
         return None
+
+    # Cartel emoji: require 2 DISTINCT emojis to avoid triple-same false positive
+    cartel_emoji_result = None
+    if _CARTEL_EMOJI_PRESENCE.search(message) and _has_two_distinct_cartel_emojis(message):
+        cartel_emoji_result = AnalysisResult(
+            risk=True, level=RiskLevel.medium,
+            reason="Combinación de emojis asociados a cárteles",
+            action=Action.warn,
+        )
 
     return (
         _check(_BLOCK_PATTERNS,        RiskLevel.high,   Action.block) or
@@ -326,7 +427,8 @@ def prefilter(message: str) -> AnalysisResult | None:
         _check(_WARN_PATTERNS,         RiskLevel.low,    Action.warn)  or
         _check(_CARTEL_WARN_PATTERNS,  RiskLevel.medium, Action.warn)  or
         _check(_EMOJI_WARN_PATTERNS,   RiskLevel.medium, Action.warn)  or
-        None  # sexual warn patterns → LLM
+        cartel_emoji_result or
+        None
     )
 
 

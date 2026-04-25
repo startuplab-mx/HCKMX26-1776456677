@@ -108,13 +108,15 @@ def analyze_sync(payload: MessageIn, db: Session = Depends(get_db)):
         player_id=payload.player_id,
         target_id=payload.target_id,
     )
+    # Don't pollute Redis risk history with Fail-Close errors
+    is_fail_close = "Fail-Close" in (result.reason or "")
     push_message(
         game_id=payload.game_id,
         session_id=payload.session_id,
         player_id=payload.player_id,
         target_id=payload.target_id,
         message=payload.message,
-        risk=result.risk,
+        risk=result.risk and not is_fail_close,
         level=result.level.value,
     )
     _save_log(db, str(uuid.uuid4()), payload, result)

@@ -35,14 +35,15 @@ def analyze_task(self, task_id: str, payload: dict) -> dict:
         )
         result_dict = result.model_dump()
 
-        # Save message to conversation context (for future msgs in this session)
+        # Don't pollute Redis risk history with Fail-Close errors
+        is_fail_close = "Fail-Close" in (result.reason or "")
         push_message(
             game_id=payload["game_id"],
             session_id=payload["session_id"],
             player_id=payload["player_id"],
             target_id=payload["target_id"],
             message=payload["message"],
-            risk=result.risk,
+            risk=result.risk and not is_fail_close,
             level=result.level.value,
         )
 

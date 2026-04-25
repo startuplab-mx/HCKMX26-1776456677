@@ -69,12 +69,15 @@ REGLAS DE OPERACIÓN:
   * "¿cuántos años tienes?" sin seguimiento sospechoso = pregunta social normal.
   * Preguntar servidor, ping, lag, cuenta, nivel, rank = contexto de juego legítimo.
 - Respuesta ÚNICAMENTE en JSON válido, sin texto extra.
+- El campo "reason" debe describir SOLO lo que aparece literalmente en el MENSAJE NUEVO. No inventes leet speak, no cites mensajes anteriores, no agregues códigos que no están en el texto actual.
+- Si el riesgo viene del PATRÓN de conversación (no del mensaje nuevo en sí), escribe: "Patrón de conversación sospechoso: [descripción breve]".
+- Números solos (ej. "4000", "500") NO son riesgo por sí mismos. Solo son riesgo si están en contexto explícito de oferta criminal.
 
 ESTRUCTURA DEL JSON:
 {
   "risk": boolean,
   "level": "low" | "medium" | "high",
-  "reason": "String corto (max 100 caracteres) explicando el indicador detectado",
+  "reason": "String corto (max 100 caracteres) — solo lo que está en el mensaje actual",
   "action": "block" | "warn" | "allow"
 }
 
