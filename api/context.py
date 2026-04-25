@@ -117,16 +117,9 @@ def format_context_for_llm(
     target_id: str,
     current_message: str,
 ) -> str:
-    all_history = get_context(game_id, session_id, player_id, target_id)
+    history = get_context(game_id, session_id, player_id, target_id)[-6:]
     global_risk = get_player_global_risk(game_id, player_id)
     now_iso = datetime.now(timezone.utc).isoformat()
-
-    # Only risky messages + last 2 for recency — cuts safe-message noise
-    risky = [e for e in all_history if e.get("risk")]
-    last_two = all_history[-2:] if all_history else []
-    seen_msgs = {id(e) for e in risky}
-    combined = risky + [e for e in last_two if id(e) not in seen_msgs]
-    combined = sorted(combined, key=lambda e: e.get("ts", ""))[-6:]
 
     lines = []
 
@@ -139,18 +132,24 @@ def format_context_for_llm(
             + "]"
         )
 
-    if combined:
-        lines.append("[HISTORIAL]")
-        for entry in combined:
+    if history:
+        lines.append("[HISTORIAL DE CONVERSACIÓN — mensajes recientes]")
+        for entry in history:
             sender = "JUGADOR_A" if entry["from"] == player_id else "JUGADOR_B"
             rel = _relative_time(entry["ts"], now_iso)
             prefix = f"[{rel}] " if rel else ""
-            flag = f" ⚠️[{entry['level'].upper()}]" if entry.get("risk") else ""
+            if entry.get("risk"):
+                lvl = entry["level"].upper()
+                flag = f" ⚠️[RIESGO:{lvl}]"
+            else:
+                flag = ""
             lines.append(f"{prefix}[{sender}]: {entry['msg']}{flag}")
         lines.append("")
 
-    lines.append("[MENSAJE NUEVO]")
+    lines.append("[MENSAJE NUEVO A ANALIZAR]")
     lines.append(f"[JUGADOR_A]: {current_message}")
+    lines.append("")
+    lines.append("Analiza el MENSAJE NUEVO considerando el patrón de la conversación completa.")
 
     return "\n".join(lines)
 
