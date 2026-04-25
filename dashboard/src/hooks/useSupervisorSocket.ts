@@ -1,6 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import type { RiskLevel, Action } from '../types'
 
+function uuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+  })
+}
+
 export interface SupervisorMessage {
   id: string
   from: string
@@ -60,7 +67,7 @@ export function useSupervisorSocket(serverUrl: string, roomId: string): UseSuper
           setPlayers(msg.players ?? [])
         } else if (msg.type === 'supervisor_message') {
           setMessages(prev => [{
-            id: crypto.randomUUID(),
+            id: uuid(),
             from: msg.from,
             text: msg.text,
             level: msg.level,
@@ -72,7 +79,7 @@ export function useSupervisorSocket(serverUrl: string, roomId: string): UseSuper
           }, ...prev].slice(0, 200))
         } else if (msg.type === 'supervisor_alert') {
           setAlerts(prev => [{
-            id: crypto.randomUUID(),
+            id: uuid(),
             from: msg.from,
             text: msg.text,
             level: msg.level,
