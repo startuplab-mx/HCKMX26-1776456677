@@ -58,6 +58,84 @@ _BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
     ), "Invitación a reunión física"),
 ]
 
+# ── Sexual grooming — high-confidence block ───────────────────────────────────
+
+_SEXUAL_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
+    # Nude / sexual photo requests
+    (re.compile(
+        r"\b(manda(me)?|enví(a|as?)(me)?|envia(me)?|sube|pásamela?|pasamela?|muéstrame|muestrame)\b"
+        r".{0,35}"
+        r"\b(nudes?|desnud[ao]s?|encuerad[ao]s?|en\s+ropa\s+interior|sin\s+ropa|calzon(cit[ao]s?)?)\b",
+        re.IGNORECASE
+    ), "Solicitud de fotos/desnudos sexuales"),
+
+    # Explicit sexual solicitation
+    (re.compile(
+        r"\b(sexo\s+contig[ao]|hacer(lo|la)\s+contig[ao]|acostarte?\s+conmigo|"
+        r"coger(te)?|cojer(te)?|follar(te)?|te\s+(cojo|follo|meto|penetro)|"
+        r"quiero\s+(cogerte|follarte|meterte))\b",
+        re.IGNORECASE
+    ), "Solicitud sexual explícita"),
+
+    # Sexual act on camera
+    (re.compile(
+        r"\b(mastúrbate|masturbate|tócate|tocate|muéstrate|muestrate)\b"
+        r".{0,30}"
+        r"\b(en\s+cámara|por\s+cámara|en\s+video|por\s+video|en\s+vivo|en\s+live|en\s+cam)\b",
+        re.IGNORECASE
+    ), "Solicitud de acto sexual en cámara"),
+
+    # Sextortion / blackmail threat
+    (re.compile(
+        r"\b(publico|comparto|mando|difundo|subo)\b.{0,30}"
+        r"\b(tus?\s+fotos|las\s+fotos|tus?\s+videos?|tus?\s+nudes?|tus?\s+imágenes?)\b",
+        re.IGNORECASE
+    ), "Amenaza de extorsión/chantaje sexual"),
+
+    # Sexual video call request
+    (re.compile(
+        r"\b(videollamada|video\s*llamada|videochat|video\s*chat|por\s+cámara|en\s+cámara)\b"
+        r".{0,30}"
+        r"\b(desnud[ao]|sin\s+ropa|hot|sexy|sexual|erótic[ao]|erotico)\b",
+        re.IGNORECASE
+    ), "Solicitud de videollamada sexual"),
+
+    # Grooming + meetup with sexual intent
+    (re.compile(
+        r"\b(te\s+quiero\s+(conocer|ver|tocar)|quiero\s+que\s+nos\s+veamos)\b"
+        r".{0,40}"
+        r"\b(solos?|sin\s+nadie|en\s+privado|en\s+mi\s+(cuarto|casa|carro|depa))\b",
+        re.IGNORECASE
+    ), "Invitación a encuentro privado con intención sexual"),
+]
+
+# ── Sexual grooming — medium-confidence warn ──────────────────────────────────
+
+_SEXUAL_WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
+    # Virginity / sexual experience probe
+    (re.compile(
+        r"\b(eres\s+virgen|has\s+(tenido\s+)?(relaciones|sexo|novio|novia)|"
+        r"te\s+has\s+(besado|acostado\s+con\s+alguien)|"
+        r"tienes\s+(novio|novia|pareja)\b)",
+        re.IGNORECASE
+    ), "Sondeo de experiencia sexual del menor"),
+
+    # Sexualized body compliments (grooming signal)
+    (re.compile(
+        r"\b(qué\s+(buen[ao]|ric[ao]|sexy|bonit[ao]|lind[ao])\s+(estás?|eres|te\s+ves)|"
+        r"tienes\s+(buen|lindo|rico)\s+cuerpo|estás\s+(muy\s+)?(buenísim[ao]|riquísim[ao]))\b",
+        re.IGNORECASE
+    ), "Comentario sexualizado sobre apariencia del menor"),
+
+    # "Are you alone" — classic grooming setup
+    (re.compile(
+        r"\b(estás\s+sol[ao]|estás\s+en\s+tu\s+(cuarto|recámara|habitación)|"
+        r"hay\s+alguien\s+(contigo|en\s+tu\s+casa)|"
+        r"tus?\s+(papás?|mamá|padres)\s+están?\s+en\s+casa)\b",
+        re.IGNORECASE
+    ), "Sondeo de si el menor está solo (patrón grooming)"),
+]
+
 # ── Medium-confidence warn patterns ───────────────────────────────────────────
 # Match = warn, still send to LLM to confirm
 
@@ -85,6 +163,8 @@ def prefilter(message: str) -> AnalysisResult | None:
     """
     Returns AnalysisResult if rule fires with high confidence.
     Returns None → message must go to LLM (Tier 2).
+
+    Check order: criminal recruitment blocks → sexual blocks → warn patterns (both types).
     """
     for pattern, reason in _BLOCK_PATTERNS:
         if pattern.search(message):
@@ -95,9 +175,21 @@ def prefilter(message: str) -> AnalysisResult | None:
                 action=Action.block,
             )
 
+    for pattern, reason in _SEXUAL_BLOCK_PATTERNS:
+        if pattern.search(message):
+            return AnalysisResult(
+                risk=True,
+                level=RiskLevel.high,
+                reason=reason,
+                action=Action.block,
+            )
+
     for pattern, reason in _WARN_PATTERNS:
         if pattern.search(message):
-            # Warn but still escalate to LLM for confirmation
-            return None  # Let LLM handle warn-level
+            return None  # LLM confirms
+
+    for pattern, reason in _SEXUAL_WARN_PATTERNS:
+        if pattern.search(message):
+            return None  # LLM confirms
 
     return None  # Ambiguous → LLM

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { Send, Shield, ShieldAlert, ShieldX, Wifi, WifiOff, Users } from 'lucide-react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { Send, Shield, ShieldAlert, ShieldX, Wifi, WifiOff, Users, Bot, Square } from 'lucide-react'
 import type { ChatMessage, RiskLevel } from '../types'
 
 interface Props {
@@ -16,6 +16,17 @@ const PLAYER_COLORS = [
   'text-purple-400', 'text-cyan-400', 'text-orange-400',
 ]
 
+// Secuencia de reclutamiento para demo automática (escalamiento gradual)
+const DEMO_SCRIPT = [
+  { delay: 0,     text: 'gg bro, nice shot!' },
+  { delay: 2500,  text: 'oye eres muy bueno, cuánto tiempo llevas jugando?' },
+  { delay: 5500,  text: 'cuántos años tienes? yo tengo 16' },
+  { delay: 9000,  text: 'te puedo conseguir skins gratis si me ayudas con algo pequeño' },
+  { delay: 13000, text: 'conozco un trabajo fácil, te pagan bien y rápido' },
+  { delay: 17000, text: 'pásate a mi discord privado para hablar mejor' },
+  { delay: 20500, text: 'no le digas a nadie, esto es entre nosotros' },
+]
+
 // Quick test phrases that simulate real recruitment patterns
 const QUICK_PHRASES = [
   { label: 'Normal', text: 'gg bro, nice shot!', safe: true },
@@ -30,6 +41,8 @@ const QUICK_PHRASES = [
 
 export function ChatPanel({ messages, status, players, onSend }: Props) {
   const [input, setInput] = useState('')
+  const [demoRunning, setDemoRunning] = useState(false)
+  const demoTimers = useRef<ReturnType<typeof setTimeout>[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -42,6 +55,25 @@ export function ChatPanel({ messages, status, players, onSend }: Props) {
     onSend(t)
     setInput('')
   }
+
+  const startDemo = useCallback(() => {
+    if (demoRunning || status !== 'connected') return
+    setDemoRunning(true)
+    demoTimers.current = DEMO_SCRIPT.map(({ delay, text }) =>
+      setTimeout(() => onSend(text), delay)
+    )
+    // auto-stop after last message
+    const last = DEMO_SCRIPT[DEMO_SCRIPT.length - 1]
+    demoTimers.current.push(setTimeout(() => setDemoRunning(false), last.delay + 1000))
+  }, [demoRunning, status, onSend])
+
+  const stopDemo = useCallback(() => {
+    demoTimers.current.forEach(clearTimeout)
+    demoTimers.current = []
+    setDemoRunning(false)
+  }, [])
+
+  useEffect(() => () => demoTimers.current.forEach(clearTimeout), [])
 
   const playerColor = (pid: string) => {
     const idx = players.indexOf(pid) % PLAYER_COLORS.length
@@ -63,6 +95,18 @@ export function ChatPanel({ messages, status, players, onSend }: Props) {
             <Users size={12} />
             <span>{players.length}/2</span>
           </div>
+          <button
+            onClick={demoRunning ? stopDemo : startDemo}
+            disabled={status !== 'connected'}
+            title={demoRunning ? 'Detener demo' : 'Ejecutar secuencia de reclutamiento automática'}
+            className={`flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+              demoRunning
+                ? 'border-red-700 text-red-400 bg-red-950/40 hover:border-red-500'
+                : 'border-purple-700 text-purple-400 bg-purple-950/30 hover:border-purple-500'
+            }`}
+          >
+            {demoRunning ? <><Square size={9} /> STOP</> : <><Bot size={10} /> DEMO</>}
+          </button>
           <StatusBadge status={status} />
         </div>
       </div>

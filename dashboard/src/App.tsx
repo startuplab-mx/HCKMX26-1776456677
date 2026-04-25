@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { JoinScreen } from './components/JoinScreen'
 import { ChatPanel } from './components/ChatPanel'
 import { DashboardPanel } from './components/DashboardPanel'
 import { useGameSocket } from './hooks/useGameSocket'
 import { useDashboardSocket } from './hooks/useDashboardSocket'
+import { useAlertNotifications } from './hooks/useAlertNotifications'
 import type { ConnectionState } from './types'
 import { LogOut, Shield } from 'lucide-react'
 
@@ -15,6 +16,15 @@ export default function App() {
 
 function MainView({ conn, onLeave }: { conn: ConnectionState; onLeave: () => void }) {
   const { alerts, stats, fetchStats, addAlert } = useDashboardSocket(conn.serverUrl, conn.roomId)
+  const { requestPermission, notify } = useAlertNotifications()
+  const prevCount = useRef(0)
+
+  useEffect(() => { requestPermission() }, [requestPermission])
+
+  useEffect(() => {
+    if (alerts.length > prevCount.current) notify(alerts[0])
+    prevCount.current = alerts.length
+  }, [alerts, notify])
 
   const handleAlert = useCallback((alert: object) => {
     addAlert(alert as Parameters<typeof addAlert>[0])

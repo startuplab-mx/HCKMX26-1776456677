@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { ShieldAlert, ShieldX, Shield, TrendingUp, AlertTriangle, CheckCircle, Activity } from 'lucide-react'
 import type { AlertEntry, Stats, RiskLevel } from '../types'
+import { ThreatChart } from './ThreatChart'
 
 interface Props {
   alerts: AlertEntry[]
@@ -61,27 +62,10 @@ export function DashboardPanel({ alerts, stats, onRefreshStats }: Props) {
         />
       </div>
 
-      {/* Risk bar */}
-      {stats && stats.total_messages > 0 && (
-        <div className="px-3 pb-3">
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3">
-            <div className="flex justify-between text-xs text-gray-500 mb-2">
-              <span>Tasa de amenaza</span>
-              <span className={stats.alert_rate > 0.1 ? 'text-red-400' : 'text-green-400'}>
-                {(stats.alert_rate * 100).toFixed(1)}%
-              </span>
-            </div>
-            <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  stats.alert_rate > 0.2 ? 'bg-red-500' : stats.alert_rate > 0.05 ? 'bg-yellow-500' : 'bg-green-500'
-                }`}
-                style={{ width: `${Math.min(100, stats.alert_rate * 100 * 5)}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Threat chart */}
+      <div className="px-3 pb-3">
+        <ThreatChart alerts={alerts} />
+      </div>
 
       {/* Alert feed */}
       <div className="flex items-center justify-between px-4 py-2 border-t border-b border-gray-800">
