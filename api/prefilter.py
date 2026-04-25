@@ -410,6 +410,11 @@ def prefilter(message: str) -> AnalysisResult | None:
                 return AnalysisResult(risk=True, level=level, reason=reason, action=action)
         return None
 
+    # Specific check for sexual warnings (always goes to LLM)
+    for pattern, _ in _SEXUAL_WARN_PATTERNS:
+        if pattern.search(message) or pattern.search(msg_norm):
+            return None  # LLM must confirm sexual grooming intent
+
     # Cartel emoji: require 2 DISTINCT emojis to avoid triple-same false positive
     cartel_emoji_result = None
     if _CARTEL_EMOJI_PRESENCE.search(message) and _has_two_distinct_cartel_emojis(message):
