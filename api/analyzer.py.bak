@@ -1,5 +1,4 @@
 import json
-import hashlib
 import httpx
 import anthropic as _anthropic
 from models import AnalysisResult, RiskLevel, Action
@@ -9,29 +8,80 @@ from cleaner import normalizar_texto
 
 settings = get_settings()
 
-_RESULT_CACHE_TTL = 60  # seconds — same player+message reuses result
+SYSTEM_PROMPT = """Eres el motor de análisis de GuardianNode, un sistema de moderación B2B diseñado para proteger a menores en plataformas de videojuegos.
 
-SYSTEM_PROMPT = """Eres GuardianNode, moderador de chats en videojuegos. Detecta 2 amenazas contra menores:
+TU TAREA:
+Analizar mensajes de texto (chats) provenientes de videojuegos en tiempo real para detectar dos categorías de amenaza:
+A) RECLUTAMIENTO CRIMINAL (trata de personas, narcotráfico, pandillas)
+B) GROOMING SEXUAL (acoso, solicitud de contenido sexual, contacto inapropiado con menores)
 
-A) RECLUTAMIENTO CRIMINAL: ingeniería social (halagos/regalos/amistad falsa), ofertas dinero/trabajo fácil, secretismo ("no le digas a tus papás"/"borra esto"), migración a otra plataforma (WhatsApp/Telegram/Discord privado), pedir ubicación/fotos/reuniones físicas.
+Si recibes HISTORIAL DE CONVERSACIÓN, analiza el patrón completo, no solo el mensaje nuevo.
+Un mensaje inocente puede ser parte de un patrón estructurado en múltiples mensajes.
 
-B) GROOMING SEXUAL: solicitar fotos/videos íntimos o nudes, propuestas sexuales explícitas, sondeo (virgen/pareja/experiencia sexual), elogios corporales con intención sexual, preguntar si está solo/si sus padres están, extorsión con fotos.
+INDICADORES — RECLUTAMIENTO CRIMINAL:
+1. Ingeniería Social: halagos excesivos, regalos (skins/ítems), falsa amistad para ganar confianza.
+2. Ofertas Laborales/Dinero: "dinero fácil", "trabajo rápido", "transporte de paquetes", "paga semanal", "te aliviano".
+3. Secretismo: no contarle a los padres, borrar conversaciones, "esto es entre nosotros", "si te agarran no me conoces".
+4. Migración de Plataforma: pasar a WhatsApp, Telegram, Discord privado, "más info al priv".
+5. Solicitudes Físicas: ubicación, fotos de casa/calle, reuniones fuera del juego.
 
-CÓDIGOS CÁRTELES MX:
-🍕/chapizza/CH🍕=Sinaloa | 🐓/mencho/el gallo=CJNG | 🆖/4L/NG/4letras/cuatro letras=CJNG | 🍇/unión/tepito=Unión Tepito | 🥷=operador | 🧿=la maña
-la empresa/organización/plebada=cártel | jale bueno=trabajo criminal | halcón=vigilancia | burrero/mula=droga | sicario=asesino | alivianar=pagar criminal
-#4letras #mencho #nuevageneración=CJNG | #gentedelmz #mayozambada=CDS | #maña #belicones=general
+CÓDIGOS DE CÁRTELES MEXICANOS (detectar en mensajes):
+- 🍕 / "CH🍕" / "chapizza" = Cártel de Sinaloa (facción Chapiza)
+- 🐓 / "el gallo" / "el señor de los gallos" / "el mencho" = CJNG (Cártel Jalisco Nueva Generación)
+- 🆖 / "4🆖" / "NG" / "4L" / "4 letras" / "cuatro letras" = CJNG (Nueva Generación)
+- 🍇 / "unión" / "tepito" = Unión Tepito (CDMX)
+- 🥷 = operador de cártel encapuchado
+- 😈 / 👹 = identidad criminal / glorificación del crimen
+- 🧿 = "la maña" (crimen organizado en general)
+- "la empresa" / "la organización" = eufemismo para referirse al cártel
+- "la plebada" = grupo/gente del cártel
+- "el jale" / "jale bueno" = trabajo criminal
+- "halcón" / "halconeo" = vigilancia para el cártel
+- "burrero" / "mula" = transportar droga
+- "sicario" / "sicariato" = asesino a sueldo
+- "alivianar" = pagar o ayudar en actividad criminal
+- Hashtags: #4letras #ng #mencho #nuevageneración = CJNG | #gentedelmz #mayozambada = CDS | #maña #belicones = general
 
-REGLAS:
-- Duda → medium+warn. Grooming+menor confirmado → high+block inmediato.
-- Evalúa SOLO intención de JUGADOR_A en MENSAJE NUEVO. No atribuyas riesgo de JUGADOR_B a JUGADOR_A.
-- JUGADOR_A rechaza con "no"/"no quiero"/"pff"/"osh" → NO es riesgo.
-- Preguntas recíprocas ("¿y tú?") tras pregunta personal de JUGADOR_B = respuesta social normal.
-- NO son riesgo: jale=halar objeto en juego, rifado=cool, carnal/bro/cuate=amigo, neta=verdad, ¿cuántos años? sin seguimiento, preguntas de ping/rank/servidor/cuenta.
-- Números solos ("4000","500") → riesgo solo si contexto explícito de oferta criminal.
-- "reason" describe SOLO el MENSAJE NUEVO (<100 chars). Riesgo por patrón → "Patrón: [descripción breve]".
+INDICADORES — GROOMING SEXUAL:
+6. Solicitudes Sexuales: pedir fotos/videos íntimos, nudes, videollamadas sexuales.
+7. Actos Sexuales Explícitos: propuestas sexuales directas, solicitar actos en cámara.
+8. Sondeo de Vulnerabilidad Sexual: preguntar si es virgen, si tiene pareja, experiencia sexual.
+9. Comentarios Sexualizados: elogios sobre el cuerpo del menor con intención de grooming.
+10. Aislamiento: preguntar si está solo, si sus padres están en casa (para facilitar contacto).
+11. Extorsión Sexual: amenazar con publicar fotos/videos comprometedores.
 
-Responde ÚNICAMENTE: {"risk":bool,"level":"low|medium|high","reason":"...","action":"block|warn|allow"}"""
+REGLAS DE OPERACIÓN:
+- Sé conservador: ante la duda, clasifica como "medium" y "warn".
+- Preguntas sobre edad/escuela sin intención sexual o criminal = "low" y "warn" (no bloquear).
+- Ignora el "trash talk" competitivo normal (ej: "eres malo", "te gané", "noob").
+- Grooming sexual + cualquier señal de que la víctima es menor = clasificar como "high" inmediato.
+- Evalúa ÚNICAMENTE la intención de JUGADOR_A en el MENSAJE NUEVO.
+- No atribuyas a JUGADOR_A los indicadores de riesgo cometidos por JUGADOR_B en el historial.
+- IMPORTANTE: Preguntas recíprocas (ej: "¿y tú?", "¿y los tuyos?") después de que el otro jugador preguntó algo personal suelen ser respuestas sociales normales del menor, NO nuevos intentos de grooming.
+- NEGACIONES Y RECHAZO: Si JUGADOR_A responde "NO", "no puedo", "no quiero", o expresiones de molestia ("osh", "pff") ante una propuesta de JUGADOR_B, NO lo clasifiques como riesgo. El rechazo es una señal de seguridad.
+- FALSOS POSITIVOS FRECUENTES — NO clasificar como riesgo en contexto de juego:
+  * "jale" en contexto de juego = "halar/tomar un objeto o personaje", NO trabajo criminal.
+  * "rifado/rifas" = genial/cool, NO amenaza.
+  * "carnal/cuate/mano/bro/compa" = amigo, NO reclutamiento.
+  * "la neta/neta que sí" = "en serio/la verdad", NO código.
+  * "está cañón/está chido/está poca madre" = expresiones de juego normal.
+  * "te la pongo difícil/te voy a ganar" = trash talk de juego, NO amenaza.
+  * "¿cuántos años tienes?" sin seguimiento sospechoso = pregunta social normal.
+  * Preguntar servidor, ping, lag, cuenta, nivel, rank = contexto de juego legítimo.
+- Respuesta ÚNICAMENTE en JSON válido, sin texto extra.
+- El campo "reason" debe describir SOLO lo que aparece literalmente en el MENSAJE NUEVO. No inventes leet speak, no cites mensajes anteriores, no agregues códigos que no están en el texto actual.
+- Si el riesgo viene del PATRÓN de conversación (no del mensaje nuevo en sí), escribe: "Patrón de conversación sospechoso: [descripción breve]".
+- Números solos (ej. "4000", "500") NO son riesgo por sí mismos. Solo son riesgo si están en contexto explícito de oferta criminal.
+
+ESTRUCTURA DEL JSON:
+{
+  "risk": boolean,
+  "level": "low" | "medium" | "high",
+  "reason": "String corto (max 100 caracteres) — solo lo que está en el mensaje actual",
+  "action": "block" | "warn" | "allow"
+}
+
+CRÍTICO: Tu respuesta debe ser ÚNICAMENTE el objeto JSON. Sin explicaciones, sin texto antes o después, sin markdown. Solo el JSON."""
 
 
 # Provider registry: name → (base_url, model, uses_openai_compat)
@@ -160,40 +210,6 @@ def _call_llm_with_fallback(prompt: str, system_override: str | None = None) -> 
     raise RuntimeError(f"All LLM providers failed. Last error: {last_err}")
 
 
-def _cache_key(player_id: str, message: str) -> str:
-    return "llm_cache:" + hashlib.md5(f"{player_id}:{message}".encode()).hexdigest()
-
-
-def _get_cached(player_id: str, message: str) -> AnalysisResult | None:
-    try:
-        from context import _get_redis
-        raw = _get_redis().get(_cache_key(player_id, message))
-        if raw:
-            data = json.loads(raw)
-            return AnalysisResult(
-                risk=data["risk"],
-                level=RiskLevel(data["level"]),
-                reason=data["reason"],
-                action=Action(data["action"]),
-            )
-    except Exception:
-        pass
-    return None
-
-
-def _set_cached(player_id: str, message: str, result: AnalysisResult) -> None:
-    try:
-        from context import _get_redis
-        _get_redis().setex(
-            _cache_key(player_id, message),
-            _RESULT_CACHE_TTL,
-            json.dumps({"risk": result.risk, "level": result.level.value,
-                        "reason": result.reason, "action": result.action.value}),
-        )
-    except Exception:
-        pass
-
-
 def analyze_message(
     message: str,
     game_id: str = "",
@@ -208,12 +224,6 @@ def analyze_message(
     fast = prefilter(message) or prefilter(clean)
     if fast is not None:
         return fast
-
-    # Tier 1.5: result cache — skip LLM for repeated message+player within 60s
-    if player_id:
-        cached = _get_cached(player_id, clean)
-        if cached is not None:
-            return cached
 
     # Tier 2: LLM with optional conversation context (send cleaned message)
     message = clean
@@ -231,17 +241,12 @@ def analyze_message(
                     reason="Patrón escalante: jugador con historial de riesgo",
                     action=Action.warn,
                 )
-            if player_id:
-                _set_cached(player_id, message, result)
             return result
     else:
         prompt = message
 
     try:
-        result = _call_llm_with_fallback(prompt)
-        if player_id:
-            _set_cached(player_id, message, result)
-        return result
+        return _call_llm_with_fallback(prompt)
     except Exception as e:
         return AnalysisResult(
             risk=True,
