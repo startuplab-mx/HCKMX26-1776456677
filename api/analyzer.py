@@ -109,7 +109,7 @@ def _build_provider_list() -> list[dict]:
 
     if _real_key(settings.cerebras_api_key):
         providers.append({
-            "model": "cerebras/llama3.1-70b",
+            "model": "cerebras/llama3.1-8b",
             "api_key": settings.cerebras_api_key,
         })
 
