@@ -7,7 +7,10 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     nvidia_api_key: str = ""
     groq_api_key: str = ""
-    llm_provider: str = "groq"  # "groq" (default) | "nvidia" | "anthropic"
+    google_api_key: str = ""
+    cerebras_api_key: str = ""
+    together_api_key: str = ""
+    llm_provider: str = "groq"  # legacy — pool handles routing now
 
     # Celery / Redis
     redis_url: str = "redis://localhost:6379/0"

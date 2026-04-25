@@ -1,7 +1,7 @@
 import json
 import hashlib
-import httpx
-import anthropic as _anthropic
+from typing import Optional
+from litellm import Router
 from models import AnalysisResult, RiskLevel, Action
 from config import get_settings
 from prefilter import prefilter
@@ -34,24 +34,103 @@ REGLAS:
 Responde ÚNICAMENTE: {"risk":bool,"level":"low|medium|high","reason":"...","action":"block|warn|allow"}"""
 
 
-# Provider registry: name → (base_url, model, uses_openai_compat)
-_PROVIDERS = {
-    "groq": {
-        "base_url": "https://api.groq.com/openai/v1",
-        "model": "llama-3.1-8b-instant",
-        "api_key": lambda: settings.groq_api_key,
-    },
-    "nvidia": {
-        "base_url": "https://integrate.api.nvidia.com/v1",
-        "model": "meta/llama-3.1-8b-instruct",
-        "api_key": lambda: settings.nvidia_api_key,
-    },
-    "anthropic": {
-        "base_url": None,  # uses SDK
-        "model": "claude-haiku-4-5-20251001",
-        "api_key": lambda: settings.anthropic_api_key,
-    },
-}
+def _real_key(k: str) -> bool:
+    return bool(k) and k not in ("", "nvapi-...", "sk-ant-...") and "..." not in k
+
+
+def _build_router() -> Router:
+    """Build LiteLLM Router with all available providers."""
+    model_list = []
+
+    if _real_key(settings.groq_api_key):
+        model_list.append({
+            "model_name": "guardian-pool",
+            "litellm_params": {
+                "model": "groq/llama-3.1-8b-instant",
+                "api_key": settings.groq_api_key,
+                "max_tokens": 128,
+                "temperature": 0.0,
+            },
+        })
+
+    if _real_key(settings.cerebras_api_key):
+        model_list.append({
+            "model_name": "guardian-pool",
+            "litellm_params": {
+                "model": "cerebras/llama3.1-70b",
+                "api_key": settings.cerebras_api_key,
+                "max_tokens": 128,
+                "temperature": 0.0,
+            },
+        })
+
+    if _real_key(settings.google_api_key):
+        model_list.append({
+            "model_name": "guardian-pool",
+            "litellm_params": {
+                "model": "gemini/gemini-2.0-flash",
+                "api_key": settings.google_api_key,
+                "max_tokens": 128,
+                "temperature": 0.0,
+            },
+        })
+
+    if _real_key(settings.together_api_key):
+        model_list.append({
+            "model_name": "guardian-pool",
+            "litellm_params": {
+                "model": "together_ai/meta-llama/Llama-4-Scout-17B-16E-Instruct",
+                "api_key": settings.together_api_key,
+                "max_tokens": 128,
+                "temperature": 0.0,
+            },
+        })
+
+    if _real_key(settings.nvidia_api_key):
+        model_list.append({
+            "model_name": "guardian-pool",
+            "litellm_params": {
+                "model": "openai/meta/llama-3.1-8b-instruct",
+                "api_base": "https://integrate.api.nvidia.com/v1",
+                "api_key": settings.nvidia_api_key,
+                "max_tokens": 128,
+                "temperature": 0.0,
+            },
+        })
+
+    if _real_key(settings.anthropic_api_key):
+        model_list.append({
+            "model_name": "guardian-pool",
+            "litellm_params": {
+                "model": "claude-haiku-4-5-20251001",
+                "api_key": settings.anthropic_api_key,
+                "max_tokens": 128,
+                "temperature": 0.0,
+            },
+        })
+
+    if not model_list:
+        raise RuntimeError("No LLM providers configured. Set at least one API key in .env")
+
+    return Router(
+        model_list=model_list,
+        routing_strategy="latency-based-routing",
+        num_retries=2,
+        retry_after=1,
+        allowed_fails=1,
+        cooldown_time=30,
+    )
+
+
+_router: Optional[Router] = None
+
+
+def _get_router() -> Router:
+    global _router
+    if _router is None:
+        _router = _build_router()
+    return _router
+
 
 _SAFE_FALLBACK = AnalysisResult(
     risk=True,
@@ -59,10 +138,6 @@ _SAFE_FALLBACK = AnalysisResult(
     reason="No se pudo analizar — conservador por defecto",
     action=Action.warn,
 )
-
-
-def _real_key(k: str) -> bool:
-    return bool(k) and k not in ("", "nvapi-...", "sk-ant-...") and "..." not in k
 
 
 def _parse_llm_response(raw: str) -> AnalysisResult:
@@ -104,60 +179,16 @@ def _wrap_prompt(prompt: str) -> str:
     return f"Analiza este mensaje de chat de videojuego:\n\n{prompt}\n\nResponde SOLO con JSON válido."
 
 
-def _call_provider(name: str, prompt: str, system: str | None) -> AnalysisResult:
-    cfg = _PROVIDERS[name]
-    system = system or SYSTEM_PROMPT
+def _call_llm_with_fallback(prompt: str, system_override: Optional[str] = None) -> AnalysisResult:
+    system = system_override or SYSTEM_PROMPT
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": _wrap_prompt(prompt)},
+    ]
 
-    if name == "anthropic":
-        client = _anthropic.Anthropic(api_key=cfg["api_key"]())
-        response = client.messages.create(
-            model=cfg["model"],
-            max_tokens=128,
-            system=system,
-            messages=[{"role": "user", "content": _wrap_prompt(prompt)}],
-        )
-        return _parse_llm_response(response.content[0].text)
-
-    payload = {
-        "model": cfg["model"],
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": _wrap_prompt(prompt)},
-        ],
-        "max_tokens": 128,
-        "temperature": 0.0,
-    }
-    resp = httpx.post(
-        f"{cfg['base_url']}/chat/completions",
-        json=payload,
-        headers={"Authorization": f"Bearer {cfg['api_key']()}", "Content-Type": "application/json"},
-        timeout=15,
-    )
-    resp.raise_for_status()
-    return _parse_llm_response(resp.json()["choices"][0]["message"]["content"])
-
-
-def _call_llm_with_fallback(prompt: str, system_override: str | None = None) -> AnalysisResult:
-    primary = settings.llm_provider
-
-    # Build ordered provider list — primary first, then fallbacks with real keys
-    fallbacks = [n for n in ("groq", "nvidia", "anthropic") if n != primary and _real_key(_PROVIDERS[n]["api_key"]())]
-    providers = [primary] + fallbacks
-
-    last_err = None
-    for name in providers:
-        for attempt in range(3):
-            try:
-                return _call_provider(name, prompt, system_override)
-            except Exception as e:
-                last_err = e
-                if "429" in str(e) and attempt < 2:
-                    import time
-                    time.sleep(2 ** attempt)
-                    continue
-                break
-
-    raise RuntimeError(f"All LLM providers failed. Last error: {last_err}")
+    router = _get_router()
+    response = router.completion(model="guardian-pool", messages=messages)
+    return _parse_llm_response(response.choices[0].message.content)
 
 
 def _cache_key(player_id: str, message: str) -> str:

@@ -30,7 +30,7 @@ namespace GuardianNode
     public class GuardianSDK : MonoBehaviour
     {
         [Header("Configuration")]
-        public string apiEndpoint = "http://localhost:8000";
+        public string apiEndpoint = "http://localhost:8888";
         public string apiKey = "guardiannode-dev-secret";
         public string gameId = "unity-game-01";
 
