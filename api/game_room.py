@@ -1,5 +1,5 @@
 """
-Game room WebSocket — connects two players through the moderation pipeline.
+Game room WebSocket — connects players through the moderation pipeline.
 
 Protocol (JSON):
   Client → Server:
@@ -7,18 +7,26 @@ Protocol (JSON):
     {"type": "message", "text": "hola"}
     {"type": "ping"}
 
-  Server → Client:
-    {"type": "joined",   "room": "abc", "player_id": "px", "players": [...]}
+  Server → Client (players):
+    {"type": "joined",        "room": "abc", "player_id": "px", "players": [...]}
     {"type": "player_joined", "player_id": "..."}
     {"type": "player_left",   "player_id": "..."}
-    {"type": "message",  "from": "px", "text": "...", "level": "low", "blocked": false, "reason": ""}
-    {"type": "blocked",  "reason": "..."}          ← only to sender
-    {"type": "alert",    ...}                       ← only to dashboard listeners
+    {"type": "message",       "from": "px", "text": "...", "level": "low", "blocked": false, "reason": ""}
+    {"type": "blocked",       "reason": "..."}   ← only to sender
     {"type": "pong"}
-    {"type": "error",    "detail": "..."}
+    {"type": "error",         "detail": "..."}
+
+  Server → Supervisor (admin):
+    {"type": "supervisor_message", "from": "px", "text": "...", "level": "low",
+     "blocked": bool, "warned": bool, "reason": "...", "ts": "..."}
+    {"type": "supervisor_alert",   ...}           ← risk events
+    {"type": "room_state",         "players": [...], "room": "..."}
+    {"type": "player_joined",      "player_id": "..."}
+    {"type": "player_left",        "player_id": "..."}
 """
 import json
 import asyncio
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -37,6 +45,7 @@ class Room:
     room_id: str
     players: dict[str, Player] = field(default_factory=dict)
     dashboard_listeners: set[WebSocket] = field(default_factory=set)
+    supervisor_listeners: set[WebSocket] = field(default_factory=set)
 
     MAX_PLAYERS = 20
 
@@ -72,6 +81,16 @@ class Room:
                 dead.append(ws)
         for ws in dead:
             self.dashboard_listeners.discard(ws)
+
+    async def notify_supervisors(self, msg: dict):
+        dead = []
+        for ws in list(self.supervisor_listeners):
+            try:
+                await ws.send_json(msg)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.supervisor_listeners.discard(ws)
 
 
 _rooms: dict[str, Room] = {}
@@ -121,6 +140,11 @@ async def game_room_ws(websocket: WebSocket, room_id: str):
                     {"type": "player_joined", "player_id": player_id},
                     exclude=player_id,
                 )
+                await room.notify_supervisors({
+                    "type": "player_joined",
+                    "player_id": player_id,
+                    "players": list(room.players.keys()),
+                })
 
             # ── Chat message ──────────────────────────────────────────────────
             elif mtype == "message":
@@ -162,9 +186,9 @@ async def game_room_ws(websocket: WebSocket, room_id: str):
                     continue
 
                 blocked = result["action"] == "block"
+                ts = datetime.now(timezone.utc).isoformat()
 
                 if blocked:
-                    # Tell sender their message was blocked
                     await websocket.send_json({
                         "type": "blocked",
                         "text": text,
@@ -172,7 +196,6 @@ async def game_room_ws(websocket: WebSocket, room_id: str):
                         "level": result["level"],
                     })
                 else:
-                    # Deliver to all players (including sender for UI echo)
                     await room.broadcast({
                         "type": "message",
                         "from": player_id,
@@ -183,9 +206,22 @@ async def game_room_ws(websocket: WebSocket, room_id: str):
                         "reason": result["reason"] if result["risk"] else "",
                     })
 
-                # Always notify dashboard on risk
+                # Supervisors see ALL messages (including blocked)
+                await room.notify_supervisors({
+                    "type": "supervisor_message",
+                    "from": player_id,
+                    "text": text,
+                    "level": result["level"],
+                    "blocked": blocked,
+                    "warned": result["action"] == "warn",
+                    "risk": result["risk"],
+                    "reason": result["reason"],
+                    "ts": ts,
+                })
+
+                # Dashboard + supervisors get alert on risk
                 if result["risk"]:
-                    await room.notify_dashboards({
+                    alert = {
                         "type": "alert",
                         "room": room_id,
                         "from": player_id,
@@ -193,7 +229,10 @@ async def game_room_ws(websocket: WebSocket, room_id: str):
                         "level": result["level"],
                         "reason": result["reason"],
                         "action": result["action"],
-                    })
+                        "ts": ts,
+                    }
+                    await room.notify_dashboards(alert)
+                    await room.notify_supervisors({**alert, "type": "supervisor_alert"})
 
             # ── Ping ──────────────────────────────────────────────────────────
             elif mtype == "ping":
@@ -205,6 +244,11 @@ async def game_room_ws(websocket: WebSocket, room_id: str):
         if player_id and player_id in room.players:
             room.players.pop(player_id)
             await room.broadcast({"type": "player_left", "player_id": player_id})
+            await room.notify_supervisors({
+                "type": "player_left",
+                "player_id": player_id,
+                "players": list(room.players.keys()),
+            })
         if not room.players:
             _rooms.pop(room_id, None)
 
@@ -222,6 +266,27 @@ async def room_dashboard_ws(websocket: WebSocket, room_id: str):
         pass
     finally:
         room.dashboard_listeners.discard(websocket)
+
+
+@router.websocket("/ws/game/{room_id}/supervisor")
+async def room_supervisor_ws(websocket: WebSocket, room_id: str):
+    """Admin supervisor — receives ALL messages + alerts + player events."""
+    await websocket.accept()
+    room = _get_or_create_room(room_id)
+    room.supervisor_listeners.add(websocket)
+    # Send current room state on connect
+    await websocket.send_json({
+        "type": "room_state",
+        "room": room_id,
+        "players": list(room.players.keys()),
+    })
+    try:
+        while True:
+            await websocket.receive_text()  # keep-alive / ping
+    except WebSocketDisconnect:
+        pass
+    finally:
+        room.supervisor_listeners.discard(websocket)
 
 
 def _moderate(text: str, game_id: str, session_id: str, player_id: str, target_id: str) -> dict:

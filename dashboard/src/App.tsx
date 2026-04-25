@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { JoinScreen } from './components/JoinScreen'
+import { AdminLoginScreen } from './components/AdminLoginScreen'
+import { SupervisorView } from './components/SupervisorView'
 import { ChatPanel } from './components/ChatPanel'
 import { DashboardPanel } from './components/DashboardPanel'
 import { useGameSocket } from './hooks/useGameSocket'
@@ -9,10 +11,41 @@ import { useTikTokComments } from './hooks/useTikTokComments'
 import type { ConnectionState } from './types'
 import { LogOut, Shield } from 'lucide-react'
 
+type Screen =
+  | { type: 'join' }
+  | { type: 'admin-login' }
+  | { type: 'game'; conn: ConnectionState }
+  | { type: 'supervisor'; serverUrl: string; roomId: string }
+
 export default function App() {
-  const [conn, setConn] = useState<ConnectionState | null>(null)
-  if (!conn) return <JoinScreen onJoin={setConn} />
-  return <MainView conn={conn} onLeave={() => setConn(null)} />
+  const [screen, setScreen] = useState<Screen>({ type: 'join' })
+
+  if (screen.type === 'join')
+    return (
+      <JoinScreen
+        onJoin={conn => setScreen({ type: 'game', conn })}
+        onAdminMode={() => setScreen({ type: 'admin-login' })}
+      />
+    )
+
+  if (screen.type === 'admin-login')
+    return (
+      <AdminLoginScreen
+        onLogin={({ serverUrl, roomId }) => setScreen({ type: 'supervisor', serverUrl, roomId })}
+        onBack={() => setScreen({ type: 'join' })}
+      />
+    )
+
+  if (screen.type === 'supervisor')
+    return (
+      <SupervisorView
+        serverUrl={screen.serverUrl}
+        roomId={screen.roomId}
+        onLeave={() => setScreen({ type: 'join' })}
+      />
+    )
+
+  return <MainView conn={(screen as { type: 'game'; conn: ConnectionState }).conn} onLeave={() => setScreen({ type: 'join' })} />
 }
 
 function MainView({ conn, onLeave }: { conn: ConnectionState; onLeave: () => void }) {

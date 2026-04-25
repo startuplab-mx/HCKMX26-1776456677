@@ -4,9 +4,10 @@ import type { ConnectionState } from '../types'
 
 interface Props {
   onJoin: (state: ConnectionState) => void
+  onAdminMode: () => void
 }
 
-export function JoinScreen({ onJoin }: Props) {
+export function JoinScreen({ onJoin, onAdminMode }: Props) {
   const [form, setForm] = useState<ConnectionState>({
     serverUrl: `ws://${window.location.hostname}:8000`,
     roomId: 'sala-demo',
@@ -92,6 +93,15 @@ export function JoinScreen({ onJoin }: Props) {
         <p className="text-center text-gray-600 text-xs mt-4">
           Dos jugadores deben usar el mismo servidor + código de sala
         </p>
+        <div className="text-center mt-3">
+          <button
+            type="button"
+            onClick={onAdminMode}
+            className="text-xs text-gray-600 hover:text-red-400 transition-colors"
+          >
+            Acceso supervisor →
+          </button>
+        </div>
       </form>
     </div>
   )
