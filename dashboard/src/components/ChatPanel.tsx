@@ -56,7 +56,9 @@ export function ChatPanel({ messages, status, players, onSend, serverUrl, apiKey
   const chunksRef = useRef<Blob[]>([])
   const streamRef = useRef<MediaStream | null>(null)
 
-  // Check permission on mount
+  const [voiceAvailable, setVoiceAvailable] = useState(true)
+
+  // Check permission + probe voice endpoint on mount
   useEffect(() => {
     if (!serverUrl) return
     navigator.permissions?.query({ name: 'microphone' as PermissionName })
@@ -65,6 +67,11 @@ export function ChatPanel({ messages, status, players, onSend, serverUrl, apiKey
         p.onchange = () => setMicPerm(p.state === 'granted' ? 'granted' : p.state === 'denied' ? 'denied' : 'unknown')
       })
       .catch(() => setMicPerm('unknown'))
+    // Probe voice endpoint — hide mic if server doesn't support it
+    const base = serverUrl.replace(/^ws/, 'http')
+    fetch(`${base}/voice/transcribe`, { method: 'POST', headers: { 'ngrok-skip-browser-warning': '1' } })
+      .then(r => { if (r.status === 404) setVoiceAvailable(false) })
+      .catch(() => {})
   }, [serverUrl])
 
   const requestMicPermission = useCallback(async () => {
@@ -99,7 +106,7 @@ export function ChatPanel({ messages, status, players, onSend, serverUrl, apiKey
           const base = serverUrl.replace(/^ws/, 'http')
           const res = await fetch(`${base}/voice/transcribe`, {
             method: 'POST',
-            headers: { 'X-API-Key': apiKey },
+            headers: { 'X-API-Key': apiKey, 'ngrok-skip-browser-warning': '1' },
             body: form,
           })
           if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -261,13 +268,13 @@ export function ChatPanel({ messages, status, players, onSend, serverUrl, apiKey
             disabled={status !== 'connected' || recording || transcribing}
             className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green-600 disabled:opacity-40 font-mono"
           />
-          {serverUrl && micPerm === 'denied' && (
+          {serverUrl && voiceAvailable && micPerm === 'denied' && (
             <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-red-950/60 border border-red-800/60 text-red-400 text-[10px] font-mono">
               <MicOff size={12} />
               <span>Bloqueado</span>
             </div>
           )}
-          {serverUrl && micPerm === 'unknown' && (
+          {serverUrl && voiceAvailable && micPerm === 'unknown' && (
             <button
               onClick={requestMicPermission}
               disabled={status !== 'connected'}
@@ -278,13 +285,13 @@ export function ChatPanel({ messages, status, players, onSend, serverUrl, apiKey
               <span>Permitir mic</span>
             </button>
           )}
-          {serverUrl && micPerm === 'requesting' && (
+          {serverUrl && voiceAvailable && micPerm === 'requesting' && (
             <div className="flex items-center gap-1.5 px-2 py-2 rounded-lg bg-yellow-950/40 border border-yellow-800/60 text-yellow-400 text-[10px] font-mono">
               <Loader size={14} className="animate-spin" />
               <span>Solicitando...</span>
             </div>
           )}
-          {serverUrl && micPerm === 'granted' && (
+          {serverUrl && voiceAvailable && micPerm === 'granted' && (
             <button
               onClick={recording ? stopRecording : startRecording}
               disabled={status !== 'connected' || transcribing}

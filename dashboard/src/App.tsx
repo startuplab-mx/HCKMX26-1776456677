@@ -53,7 +53,7 @@ function MainView({ conn, onLeave }: { conn: ConnectionState; onLeave: () => voi
   const { requestPermission, notify } = useAlertNotifications()
   const { comments: tiktokComments, loading: tiktokLoading, analyzeComment, runTikTokDemo, stopTikTokDemo, demoRunning: tiktokDemoRunning } = useTikTokComments(
     conn.serverUrl,
-    'aegis-dev-secret'
+    'guardiannode-dev-secret'
   )
   const prevCount = useRef(0)
 
@@ -79,7 +79,7 @@ function MainView({ conn, onLeave }: { conn: ConnectionState; onLeave: () => voi
   useState(() => { connect() })
 
   const handleLeave = () => { disconnect(); onLeave() }
-  const handleRefreshStats = useCallback(() => fetchStats('aegis-dev-secret'), [fetchStats])
+  const handleRefreshStats = useCallback(() => fetchStats('guardiannode-dev-secret'), [fetchStats])
 
   return (
     <div className="h-screen flex flex-col bg-[#0a0a0f]">
@@ -107,7 +107,7 @@ function MainView({ conn, onLeave }: { conn: ConnectionState; onLeave: () => voi
               players={players}
               onSend={sendMessage}
               serverUrl={conn.serverUrl}
-              apiKey="aegis-dev-secret"
+              apiKey="guardiannode-dev-secret"
             />
         </div>
         <div className="flex-[2] min-w-0 border-l border-gray-800">

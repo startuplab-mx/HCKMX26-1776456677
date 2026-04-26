@@ -30,7 +30,7 @@ export function useDashboardSocket(serverUrl: string, roomId: string) {
   const fetchStats = useCallback(async (apiKey: string) => {
     try {
       const base = serverUrl.replace(/^ws/, 'http')
-      const res = await fetch(`${base}/stats`, { headers: { 'X-API-Key': apiKey } })
+      const res = await fetch(`${base}/stats`, { headers: { 'X-API-Key': apiKey, 'ngrok-skip-browser-warning': '1' } })
       if (res.ok) setStats(await res.json())
     } catch { /* ignore */ }
   }, [serverUrl])
@@ -39,7 +39,7 @@ export function useDashboardSocket(serverUrl: string, roomId: string) {
     if (!serverUrl || !roomId) return
 
     // Load initial stats on mount
-    fetchStats('aegis-dev-secret')
+    fetchStats('guardiannode-dev-secret')
 
     let socket: WebSocket | null = null
     let dead = false

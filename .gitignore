@@ -19,3 +19,4 @@ dist/
 *.log
 celerybeat-schedule
 /venv
+ngrok.yml

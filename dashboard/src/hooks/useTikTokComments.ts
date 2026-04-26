@@ -60,6 +60,7 @@ export function useTikTokComments(serverUrl: string, apiKey: string) {
         headers: {
           'Content-Type': 'application/json',
           'X-API-Key': apiKey,
+          'ngrok-skip-browser-warning': '1',
         },
         body: JSON.stringify(payload),
       })

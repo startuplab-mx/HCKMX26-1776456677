@@ -213,7 +213,7 @@ _CARTEL_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
     # Self-identification as cartel member + any recruitment signal
     (re.compile(
         r"\b(somos?\s+(del?|de\s+la)|soy\s+(del?|de\s+la)|andamos?\s+con|trabajamos?\s+(para|con))\b.{0,30}"
-        r"\b(cjng|chapiza|chapizza|sinaloa|unión\s+tepito|nueva\s+generaci[oó]n|la\s+empresa|la\s+organizaci[oó]n|la\s+ma[nñ]a)\b",
+        r"\b(cjng|chapiza|chapizza|unión\s+tepito|nueva\s+generaci[oó]n|la\s+empresa|la\s+organizaci[oó]n)\b",
         re.IGNORECASE
     ), "Identificación como miembro de cártel"),
 
@@ -230,6 +230,18 @@ _CARTEL_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
         r"\b(cjng|chapiza|chapizza|nueva\s+generaci[oó]n|la\s+empresa|la\s+organizaci[oó]n)\b",
         re.IGNORECASE
     ), "Reclutamiento explícito en nombre de cártel"),
+
+    # Cartel name standalone — unambiguous identifiers, no innocent use in game/social chat
+    (re.compile(
+        r"\b(cjng|chapiza|chapizza|mayo\s+zambada|el\s+mencho|mencho|beli[ck]ones?)\b",
+        re.IGNORECASE
+    ), "Referencia directa a cártel mexicano"),
+
+    # "cartel de X" — explicit cartel identification regardless of name
+    (re.compile(
+        r"\b(c[aá]rtel|cartel)\s+de\s+\w+",
+        re.IGNORECASE
+    ), "Identificación explícita de cártel"),
 
     # Direct recruitment + cartel language
     (re.compile(
@@ -364,12 +376,11 @@ _CARTEL_WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
         re.IGNORECASE
     ), "Hashtag vinculado a cártel (CJNG/CDS/General)"),
 
-    # Standalone cartel name mentions (without # — still suspicious in chat)
+    # Ambiguous cartel refs — dual meaning possible (sinaloa=state, la maña=general slang)
     (re.compile(
-        r"\b(cjng|chapiza|chapizza|mayo\s+zambada|el\s+mencho|mencho|"
-        r"beli[ck]ones?|la\s+ma[nñ]a|sinaloa\b|nueva\s+generaci[oó]n)\b",
+        r"\b(la\s+ma[nñ]a|sinaloa\b|nueva\s+generaci[oó]n)\b",
         re.IGNORECASE
-    ), "Referencia directa a cártel mexicano"),
+    ), "Referencia a cártel mexicano"),
 
     # "4l" / "4 l" standalone = CJNG "4 Letras" code
     (re.compile(r"\b4\s*l\b", re.IGNORECASE), "Código CJNG (4L = cuatro letras)"),
