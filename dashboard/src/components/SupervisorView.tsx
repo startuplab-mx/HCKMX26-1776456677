@@ -31,7 +31,7 @@ const CHART_COLORS: Record<RiskLevel, string> = {
 }
 
 export function SupervisorView({ serverUrl, roomId, onLeave }: Props) {
-  const { messages, alerts, players, connected } = useSupervisorSocket(serverUrl, roomId)
+  const { messages, alerts, players, connected, stats } = useSupervisorSocket(serverUrl, roomId)
   const { isRunning, scenario, currentStep, totalSteps, startDemo, stopDemo } = useDemoMode(serverUrl, roomId)
 
   const blocked = messages.filter(m => m.blocked).length
@@ -133,11 +133,17 @@ export function SupervisorView({ serverUrl, roomId, onLeave }: Props) {
       <div className="flex flex-1 overflow-hidden">
         {/* Left: message feed */}
         <div className="flex-[3] flex flex-col min-w-0 border-r border-gray-800">
-          {/* Stats bar */}
+          {/* Stats bar — real-time ephemeral counters (no PII stored) */}
           <div className="flex gap-4 px-4 py-2 border-b border-gray-800 bg-gray-900/40 shrink-0">
-            <Stat label="Mensajes" value={total} color="text-white" />
-            <Stat label="Alertas" value={warned} color="text-yellow-400" />
-            <Stat label="Bloqueados" value={blocked} color="text-red-400" />
+            <Stat label="Analizados" value={stats?.total_messages ?? total} color="text-white" />
+            <Stat label="Alertas" value={stats?.total_alerts ?? warned} color="text-yellow-400" />
+            <Stat label="Bloqueados" value={stats?.by_action?.block ?? blocked} color="text-red-400" />
+            <Stat label="Advertidos" value={stats?.by_action?.warn ?? warned} color="text-orange-400" />
+            {stats && stats.total_messages > 0 && (
+              <span className="text-[10px] font-mono text-gray-600 self-center">
+                {(stats.alert_rate * 100).toFixed(1)}% riesgo
+              </span>
+            )}
           </div>
 
           {/* Feed */}

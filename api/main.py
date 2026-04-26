@@ -14,6 +14,7 @@ from models import MessageIn, SocialMediaIn, TaskResponse, AnalysisResult, LogEn
 from worker import celery_app, analyze_task
 from ws import router as ws_router
 from game_room import router as game_router
+from voice import router as voice_router
 
 settings = get_settings()
 
@@ -40,6 +41,7 @@ app.add_middleware(
 
 app.include_router(ws_router)
 app.include_router(game_router)
+app.include_router(voice_router)
 
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
@@ -241,52 +243,12 @@ def analyze_social_comment(payload: SocialMediaIn, db: Session = Depends(get_db)
 
 @app.get(
     "/stats",
-    summary="Dashboard stats — counts by level and game",
+    summary="Dashboard stats — ephemeral in-memory counts (no PII stored)",
     dependencies=[Depends(verify_api_key)],
 )
-def get_stats(
-    db: Session = Depends(get_db),
-    game_id: Optional[str] = Query(None),
-):
-    from sqlalchemy import func
-
-    q = db.query(AuditLog)
-    if game_id:
-        q = q.filter(AuditLog.game_id == game_id)
-
-    total = q.count()
-    risky = q.filter(AuditLog.risk == True).count()
-
-    level_counts = (
-        db.query(AuditLog.level, func.count(AuditLog.id))
-        .filter(AuditLog.risk == True)
-        .group_by(AuditLog.level)
-        .all()
-    )
-    action_counts = (
-        db.query(AuditLog.action, func.count(AuditLog.id))
-        .group_by(AuditLog.action)
-        .all()
-    )
-    top_games = (
-        db.query(AuditLog.game_id, func.count(AuditLog.id).label("alerts"))
-        .filter(AuditLog.risk == True)
-        .group_by(AuditLog.game_id)
-        .order_by(func.count(AuditLog.id).desc())
-        .limit(10)
-        .all()
-    )
-
-    return {
-        "total_messages": total,
-        "total_alerts": risky,
-        "alert_rate": round(risky / total, 4) if total else 0,
-        "by_level": {level: count for level, count in level_counts},
-        "by_action": {action: count for action, count in action_counts},
-        "top_games_by_alerts": [
-            {"game_id": g, "alerts": c} for g, c in top_games
-        ],
-    }
+def get_stats():
+    from game_room import get_ephemeral_stats
+    return get_ephemeral_stats()
 
 
 @app.get("/health")

@@ -16,9 +16,9 @@ namespace GuardianNode
     [RequireComponent(typeof(GuardianSDK))]
     public class GuardianAudioModerator : MonoBehaviour
     {
-        [Header("STT Configuration (ej. Deepgram)")]
-        public string sttEndpoint = "https://api.deepgram.com/v1/listen";
-        public string sttApiKey = "TU_DEEPGRAM_API_KEY";
+        [Header("GuardianNode STT Configuration")]
+        public string sttEndpoint = "http://localhost:8000/voice/transcribe/raw";
+        public string sttApiKey = "guardiannode-dev-secret";
 
         [Header("Audio Settings")]
         public int recordDurationSec = 5;
@@ -80,7 +80,7 @@ namespace GuardianNode
                 request.uploadHandler = new UploadHandlerRaw(audioBytes);
                 request.downloadHandler = new DownloadHandlerBuffer();
                 request.SetRequestHeader("Content-Type", "audio/wav");
-                request.SetRequestHeader("Authorization", $"Token {sttApiKey}");
+                request.SetRequestHeader("X-API-Key", sttApiKey);
 
                 yield return request.SendWebRequest();
 

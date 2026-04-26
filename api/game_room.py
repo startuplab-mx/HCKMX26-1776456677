@@ -30,6 +30,37 @@ from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+# ── Ephemeral in-memory stats (never written to disk — legal compliance) ──────
+# Reset on process restart. No PII, no message content stored here.
+_ephemeral_stats: dict = {
+    "total_messages": 0,
+    "total_alerts": 0,
+    "by_level": {"low": 0, "medium": 0, "high": 0},
+    "by_action": {"allow": 0, "warn": 0, "block": 0},
+}
+
+def get_ephemeral_stats() -> dict:
+    return {
+        "total_messages": _ephemeral_stats["total_messages"],
+        "total_alerts": _ephemeral_stats["total_alerts"],
+        "alert_rate": round(
+            _ephemeral_stats["total_alerts"] / _ephemeral_stats["total_messages"], 4
+        ) if _ephemeral_stats["total_messages"] else 0,
+        "by_level": dict(_ephemeral_stats["by_level"]),
+        "by_action": dict(_ephemeral_stats["by_action"]),
+    }
+
+def _update_stats(result: dict) -> None:
+    _ephemeral_stats["total_messages"] += 1
+    level = result.get("level", "low")
+    action = result.get("action", "allow")
+    if level in _ephemeral_stats["by_level"]:
+        _ephemeral_stats["by_level"][level] += 1
+    if action in _ephemeral_stats["by_action"]:
+        _ephemeral_stats["by_action"][action] += 1
+    if result.get("risk"):
+        _ephemeral_stats["total_alerts"] += 1
+
 router = APIRouter()
 
 
@@ -231,6 +262,13 @@ async def game_room_ws(websocket: WebSocket, room_id: str):
                     "ts": ts,
                 })
 
+                # Update ephemeral stats and push to supervisors
+                _update_stats(result)
+                await room.notify_supervisors({
+                    "type": "stats_update",
+                    **get_ephemeral_stats(),
+                })
+
                 # Dashboard + supervisors get alert on risk
                 if result["risk"]:
                     alert = {
@@ -286,12 +324,13 @@ async def room_supervisor_ws(websocket: WebSocket, room_id: str):
     await websocket.accept()
     room = _get_or_create_room(room_id)
     room.supervisor_listeners.add(websocket)
-    # Send current room state on connect
+    # Send current room state + initial stats snapshot on connect
     await websocket.send_json({
         "type": "room_state",
         "room": room_id,
         "players": list(room.players.keys()),
     })
+    await websocket.send_json({"type": "stats_update", **get_ephemeral_stats()})
     try:
         while True:
             await websocket.receive_text()  # keep-alive / ping
@@ -302,7 +341,8 @@ async def room_supervisor_ws(websocket: WebSocket, room_id: str):
 
 
 def _moderate(text: str, game_id: str, session_id: str, player_id: str, target_id: str) -> dict:
-    """Sync wrapper for the analysis pipeline — runs in executor."""
+    """Sync wrapper for the analysis pipeline — runs in executor.
+    No message content is persisted (ephemeral-only, legal compliance)."""
     from analyzer import analyze_message
     from context import push_message
 

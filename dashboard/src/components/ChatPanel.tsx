@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Send, Shield, ShieldAlert, ShieldX, Wifi, WifiOff, Users, Bot, Square } from 'lucide-react'
+import { Send, Shield, ShieldAlert, ShieldX, Wifi, WifiOff, Users, Bot, Square, Mic, MicOff, Loader } from 'lucide-react'
 import type { ChatMessage, RiskLevel } from '../types'
 
 interface Props {
@@ -8,6 +8,8 @@ interface Props {
   players: string[]
   playerId?: string
   onSend: (text: string) => void
+  serverUrl?: string
+  apiKey?: string
 }
 
 // Minecraft-style name colors for players
@@ -39,11 +41,95 @@ const QUICK_PHRASES = [
   { label: 'Ubicación', text: 'dónde vives? yo soy de guadalajara', safe: false },
 ]
 
-export function ChatPanel({ messages, status, players, onSend }: Props) {
+export function ChatPanel({ messages, status, players, onSend, serverUrl, apiKey }: Props) {
   const [input, setInput] = useState('')
   const [demoRunning, setDemoRunning] = useState(false)
   const demoTimers = useRef<ReturnType<typeof setTimeout>[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  // Voice recording state
+  const [micPerm, setMicPerm] = useState<'unknown' | 'requesting' | 'granted' | 'denied'>('unknown')
+  const [recording, setRecording] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const [voiceError, setVoiceError] = useState('')
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const streamRef = useRef<MediaStream | null>(null)
+
+  // Check permission on mount
+  useEffect(() => {
+    if (!serverUrl) return
+    navigator.permissions?.query({ name: 'microphone' as PermissionName })
+      .then(p => {
+        setMicPerm(p.state === 'granted' ? 'granted' : p.state === 'denied' ? 'denied' : 'unknown')
+        p.onchange = () => setMicPerm(p.state === 'granted' ? 'granted' : p.state === 'denied' ? 'denied' : 'unknown')
+      })
+      .catch(() => setMicPerm('unknown'))
+  }, [serverUrl])
+
+  const requestMicPermission = useCallback(async () => {
+    setMicPerm('requesting')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach(t => t.stop())
+      setMicPerm('granted')
+    } catch {
+      setMicPerm('denied')
+    }
+  }, [])
+
+  const startRecording = useCallback(async () => {
+    if (!serverUrl || !apiKey) return
+    setVoiceError('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      setMicPerm('granted')
+      streamRef.current = stream
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg'
+      const mr = new MediaRecorder(stream, { mimeType })
+      chunksRef.current = []
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      mr.onstop = async () => {
+        streamRef.current?.getTracks().forEach(t => t.stop())
+        const blob = new Blob(chunksRef.current, { type: mimeType })
+        setTranscribing(true)
+        try {
+          const form = new FormData()
+          form.append('audio', blob, mimeType === 'audio/webm' ? 'voice.webm' : 'voice.ogg')
+          const base = serverUrl.replace(/^ws/, 'http')
+          const res = await fetch(`${base}/voice/transcribe`, {
+            method: 'POST',
+            headers: { 'X-API-Key': apiKey },
+            body: form,
+          })
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          const { transcript } = await res.json()
+          if (transcript) onSend(transcript)
+        } catch {
+          setVoiceError('Error de transcripción')
+          setTimeout(() => setVoiceError(''), 3000)
+        } finally {
+          setTranscribing(false)
+        }
+      }
+      mr.start()
+      mediaRecorderRef.current = mr
+      setRecording(true)
+    } catch (e: unknown) {
+      const name = (e as { name?: string })?.name
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        setMicPerm('denied')
+      } else {
+        setVoiceError('Error al iniciar micrófono')
+        setTimeout(() => setVoiceError(''), 3000)
+      }
+    }
+  }, [serverUrl, apiKey, onSend])
+
+  const stopRecording = useCallback(() => {
+    mediaRecorderRef.current?.stop()
+    setRecording(false)
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -159,18 +245,65 @@ export function ChatPanel({ messages, status, players, onSend }: Props) {
 
       {/* Input */}
       <div className="px-3 py-3 border-t border-gray-800 bg-[#0d0d14]">
+        {voiceError && (
+          <p className="text-xs text-red-400 font-mono mb-1.5 px-1">{voiceError}</p>
+        )}
         <div className="flex gap-2">
           <input
-            value={input}
+            value={transcribing ? '' : input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && send()}
-            placeholder={status === 'connected' ? 'Escribe un mensaje...' : 'Conectando...'}
-            disabled={status !== 'connected'}
+            placeholder={
+              transcribing ? 'Transcribiendo...' :
+              recording ? '🔴 Grabando voz...' :
+              status === 'connected' ? 'Escribe un mensaje...' : 'Conectando...'
+            }
+            disabled={status !== 'connected' || recording || transcribing}
             className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green-600 disabled:opacity-40 font-mono"
           />
+          {serverUrl && micPerm === 'denied' && (
+            <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-red-950/60 border border-red-800/60 text-red-400 text-[10px] font-mono">
+              <MicOff size={12} />
+              <span>Bloqueado</span>
+            </div>
+          )}
+          {serverUrl && micPerm === 'unknown' && (
+            <button
+              onClick={requestMicPermission}
+              disabled={status !== 'connected'}
+              title="Permitir acceso al micrófono para voz"
+              className="flex items-center gap-1.5 px-2 py-2 rounded-lg bg-blue-900/40 border border-blue-700/60 text-blue-300 hover:bg-blue-900/70 transition-colors disabled:opacity-40 text-[10px] font-mono"
+            >
+              <Mic size={14} />
+              <span>Permitir mic</span>
+            </button>
+          )}
+          {serverUrl && micPerm === 'requesting' && (
+            <div className="flex items-center gap-1.5 px-2 py-2 rounded-lg bg-yellow-950/40 border border-yellow-800/60 text-yellow-400 text-[10px] font-mono">
+              <Loader size={14} className="animate-spin" />
+              <span>Solicitando...</span>
+            </div>
+          )}
+          {serverUrl && micPerm === 'granted' && (
+            <button
+              onClick={recording ? stopRecording : startRecording}
+              disabled={status !== 'connected' || transcribing}
+              title={recording ? 'Detener grabación' : 'Grabar mensaje de voz'}
+              className={`px-3 py-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                recording
+                  ? 'bg-red-600 hover:bg-red-500 text-white animate-pulse'
+                  : transcribing
+                  ? 'bg-gray-700 text-gray-400'
+                  : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+              }`}
+            >
+              {transcribing ? <Loader size={16} className="animate-spin" /> :
+               recording ? <MicOff size={16} /> : <Mic size={16} />}
+            </button>
+          )}
           <button
             onClick={send}
-            disabled={status !== 'connected'}
+            disabled={status !== 'connected' || recording || transcribing}
             className="bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg transition-colors"
           >
             <Send size={16} />

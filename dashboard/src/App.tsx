@@ -101,7 +101,14 @@ function MainView({ conn, onLeave }: { conn: ConnectionState; onLeave: () => voi
       </div>
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-[3] min-w-0">
-          <ChatPanel messages={messages} status={status} players={players} onSend={sendMessage} />
+          <ChatPanel
+              messages={messages}
+              status={status}
+              players={players}
+              onSend={sendMessage}
+              serverUrl={conn.serverUrl}
+              apiKey="guardiannode-dev-secret"
+            />
         </div>
         <div className="flex-[2] min-w-0 border-l border-gray-800">
           <DashboardPanel

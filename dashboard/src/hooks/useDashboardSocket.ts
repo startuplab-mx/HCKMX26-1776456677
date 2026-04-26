@@ -26,8 +26,20 @@ export function useDashboardSocket(serverUrl: string, roomId: string) {
     setAlerts(prev => [entry, ...prev].slice(0, 100))
   }, [roomId])
 
+  // Load initial stats snapshot
+  const fetchStats = useCallback(async (apiKey: string) => {
+    try {
+      const base = serverUrl.replace(/^ws/, 'http')
+      const res = await fetch(`${base}/stats`, { headers: { 'X-API-Key': apiKey } })
+      if (res.ok) setStats(await res.json())
+    } catch { /* ignore */ }
+  }, [serverUrl])
+
   useEffect(() => {
     if (!serverUrl || !roomId) return
+
+    // Load initial stats on mount
+    fetchStats('guardiannode-dev-secret')
 
     let socket: WebSocket | null = null
     let dead = false
@@ -40,10 +52,15 @@ export function useDashboardSocket(serverUrl: string, roomId: string) {
       socket.onmessage = (e) => {
         const msg = JSON.parse(e.data)
         if (msg.type === 'alert') addAlert(msg)
+        // Real-time stats pushed by server after each moderation
+        if (msg.type === 'stats_update') {
+          const { type: _, ...statsData } = msg
+          setStats(statsData)
+        }
       }
 
       socket.onclose = () => {
-        if (!dead) setTimeout(connect, 3000) // auto-reconnect
+        if (!dead) setTimeout(connect, 3000)
       }
 
       socket.onerror = () => socket?.close()
@@ -53,7 +70,6 @@ export function useDashboardSocket(serverUrl: string, roomId: string) {
       }, 20000)
     }
 
-    // Delay connect slightly to avoid StrictMode double-invoke teardown
     const tid = setTimeout(connect, 100)
 
     return () => {
@@ -62,15 +78,7 @@ export function useDashboardSocket(serverUrl: string, roomId: string) {
       clearInterval(pingId)
       socket?.close()
     }
-  }, [serverUrl, roomId, addAlert])
-
-  const fetchStats = useCallback(async (apiKey: string) => {
-    try {
-      const base = serverUrl.replace(/^ws/, 'http')
-      const res = await fetch(`${base}/stats`, { headers: { 'X-API-Key': apiKey } })
-      if (res.ok) setStats(await res.json())
-    } catch { /* ignore */ }
-  }, [serverUrl])
+  }, [serverUrl, roomId, addAlert, fetchStats])
 
   return { alerts, stats, fetchStats, addAlert }
 }

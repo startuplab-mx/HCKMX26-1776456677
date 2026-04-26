@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import type { RiskLevel, Action } from '../types'
+import type { RiskLevel, Action, Stats } from '../types'
 
 function uuid() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -35,6 +35,7 @@ interface UseSupervisorSocket {
   alerts: SupervisorAlert[]
   players: string[]
   connected: boolean
+  stats: Stats | null
 }
 
 export function useSupervisorSocket(serverUrl: string, roomId: string): UseSupervisorSocket {
@@ -42,6 +43,7 @@ export function useSupervisorSocket(serverUrl: string, roomId: string): UseSuper
   const [alerts, setAlerts] = useState<SupervisorAlert[]>([])
   const [players, setPlayers] = useState<string[]>([])
   const [connected, setConnected] = useState(false)
+  const [stats, setStats] = useState<Stats | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
 
   const connect = useCallback(() => {
@@ -87,6 +89,9 @@ export function useSupervisorSocket(serverUrl: string, roomId: string): UseSuper
             action: msg.action,
             ts: new Date(msg.ts),
           }, ...prev].slice(0, 100))
+        } else if (msg.type === 'stats_update') {
+          const { type: _, ...statsData } = msg
+          setStats(statsData)
         }
       } catch {}
     }
@@ -99,5 +104,5 @@ export function useSupervisorSocket(serverUrl: string, roomId: string): UseSuper
     }
   }, [connect])
 
-  return { messages, alerts, players, connected }
+  return { messages, alerts, players, connected, stats }
 }

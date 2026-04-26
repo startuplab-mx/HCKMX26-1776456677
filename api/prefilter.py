@@ -210,6 +210,27 @@ _WARN_PATTERNS: list[tuple[re.Pattern, str]] = [
 # Source: Constanza Nuche — "Reclutamiento Digital" (TikTok ethnography, Mexico)
 
 _CARTEL_BLOCK_PATTERNS: list[tuple[re.Pattern, str]] = [
+    # Self-identification as cartel member + any recruitment signal
+    (re.compile(
+        r"\b(somos?\s+(del?|de\s+la)|soy\s+(del?|de\s+la)|andamos?\s+con|trabajamos?\s+(para|con))\b.{0,30}"
+        r"\b(cjng|chapiza|chapizza|sinaloa|unión\s+tepito|nueva\s+generaci[oó]n|la\s+empresa|la\s+organizaci[oó]n|la\s+ma[nñ]a)\b",
+        re.IGNORECASE
+    ), "Identificación como miembro de cártel"),
+
+    # Cartel name + active recruitment verb
+    (re.compile(
+        r"\b(cjng|chapiza|chapizza|nueva\s+generaci[oó]n|la\s+empresa|la\s+organizaci[oó]n)\b.{0,60}"
+        r"\b(se\s+busca|buscamos|recluta(mos|ndo)?|únete|jálate|jalense|hay\s+(trabajo|chamba|jale)|"
+        r"necesita(mos)?\s+gente|gente\s+de\s+confianza)\b",
+        re.IGNORECASE
+    ), "Reclutamiento explícito en nombre de cártel"),
+
+    (re.compile(
+        r"\b(se\s+busca|buscamos|recluta(mos|ndo)?|únete|jálate|gente\s+de\s+confianza|necesita(mos)?\s+gente)\b.{0,60}"
+        r"\b(cjng|chapiza|chapizza|nueva\s+generaci[oó]n|la\s+empresa|la\s+organizaci[oó]n)\b",
+        re.IGNORECASE
+    ), "Reclutamiento explícito en nombre de cártel"),
+
     # Direct recruitment + cartel language
     (re.compile(
         r"\b(el\s+patr[oó]n|el\s+jefe|la\s+organizaci[oó]n|la\s+empresa|la\s+compa[nñ][ií]a)\b.{0,40}"
@@ -478,13 +499,13 @@ def prefilter(message: str) -> AnalysisResult | None:
         if pattern.search(message) or pattern.search(msg_norm):
             return None
 
-    # Cartel emoji: require 2 DISTINCT emojis
+    # Cartel emoji: 2+ DISTINCT emojis = high confidence cartel affiliation → BLOCK
     cartel_emoji_result = None
     if _CARTEL_EMOJI_PRESENCE.search(message) and _has_two_distinct_cartel_emojis(message):
         cartel_emoji_result = AnalysisResult(
-            risk=True, level=RiskLevel.medium,
+            risk=True, level=RiskLevel.high,
             reason="Combinación de emojis asociados a cárteles",
-            action=Action.warn,
+            action=Action.block,
         )
 
     return (
