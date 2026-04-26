@@ -39,7 +39,7 @@ export function useDashboardSocket(serverUrl: string, roomId: string) {
     if (!serverUrl || !roomId) return
 
     // Load initial stats on mount
-    fetchStats('guardiannode-dev-secret')
+    fetchStats('aegis-dev-secret')
 
     let socket: WebSocket | null = null
     let dead = false

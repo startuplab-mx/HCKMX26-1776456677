@@ -36,7 +36,7 @@ async def _redis_listener(websocket: WebSocket):
     """Subscribe to Redis channel and forward alerts to this WS client."""
     r = aioredis.from_url(settings.redis_url)
     pubsub = r.pubsub()
-    await pubsub.subscribe("guardiannode:alerts")
+    await pubsub.subscribe("aegis:alerts")
     try:
         async for msg in pubsub.listen():
             if msg["type"] == "message":
@@ -48,5 +48,5 @@ async def _redis_listener(websocket: WebSocket):
                 except Exception:
                     break
     finally:
-        await pubsub.unsubscribe("guardiannode:alerts")
+        await pubsub.unsubscribe("aegis:alerts")
         await r.aclose()

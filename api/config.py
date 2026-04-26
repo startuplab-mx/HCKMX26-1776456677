@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     celery_backend: str = "redis://localhost:6379/1"
 
     # DB
-    database_url: str = "sqlite:///./guardiannode.db"
+    database_url: str = "sqlite:///./aegis.db"
 
     # API
     api_key_secret: str = "change-me-in-production"

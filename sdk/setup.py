@@ -1,9 +1,9 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="guardiannode-sdk",
+    name="aegis-sdk",
     version="1.0.0",
-    description="GuardianNode — child safety moderation SDK for gaming platforms",
+    description="AEGIS — child safety moderation SDK for gaming platforms",
     packages=find_packages(),
     python_requires=">=3.10",
     install_requires=[

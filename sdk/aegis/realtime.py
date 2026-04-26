@@ -1,5 +1,5 @@
 """
-GuardianNode Python SDK — WebSocket realtime client.
+AEGIS Python SDK — WebSocket realtime client.
 
 Connects directly to /ws/game/{room} and handles the full
 message protocol: join, send, receive, alerts, auto-reconnect.
@@ -17,12 +17,12 @@ except ImportError:
     _WS_AVAILABLE = False
 
 
-class GuardianNodeRealtime:
+class AEGISRealtime:
     """
     WebSocket client for real-time game chat moderation.
 
     Usage:
-        gn = GuardianNodeRealtime("ws://localhost:8000", "my-room", "Player1", "MyGame")
+        gn = AEGISRealtime("ws://localhost:8000", "my-room", "Player1", "MyGame")
         gn.on_message(lambda msg: print(msg.text))
         gn.on_alert(lambda alert: print(f"ALERT: {alert.reason}"))
         gn.connect()
@@ -117,7 +117,7 @@ class GuardianNodeRealtime:
     # ── Send ───────────────────────────────────────────────────────────────────
 
     def send(self, text: str):
-        """Send a chat message. GuardianNode will analyze it server-side."""
+        """Send a chat message. AEGIS will analyze it server-side."""
         if not self.connected:
             raise RuntimeError("Not connected")
         self._ws.send(json.dumps({"type": "message", "text": text}))

@@ -4,7 +4,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
 
-namespace GuardianNode
+namespace AEGIS
 {
     [Serializable]
     public class STTResponse
@@ -16,9 +16,9 @@ namespace GuardianNode
     [RequireComponent(typeof(GuardianSDK))]
     public class GuardianAudioModerator : MonoBehaviour
     {
-        [Header("GuardianNode STT Configuration")]
+        [Header("AEGIS STT Configuration")]
         public string sttEndpoint = "http://localhost:8000/voice/transcribe/raw";
-        public string sttApiKey = "guardiannode-dev-secret";
+        public string sttApiKey = "aegis-dev-secret";
 
         [Header("Audio Settings")]
         public int recordDurationSec = 5;
@@ -98,7 +98,7 @@ namespace GuardianNode
                     {
                         Debug.Log($"[Guardian Audio] Transcripción exitosa: '{transcript}'");
 
-                        // 4. EL PASO MÁGICO: Enviar el texto transcrito a GuardianNode para moderación
+                        // 4. EL PASO MÁGICO: Enviar el texto transcrito a AEGIS para moderación
                         guardian.AnalyzeMessage(currentPlayerId, transcript, callback: OnModerationResult);
                     }
                 }

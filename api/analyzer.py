@@ -14,7 +14,7 @@ settings = get_settings()
 
 _RESULT_CACHE_TTL = 60  # seconds — same player+message reuses result
 
-SYSTEM_PROMPT = """Eres el motor de análisis de GuardianNode, un sistema de moderación B2B diseñado para proteger a menores en plataformas de videojuegos.
+SYSTEM_PROMPT = """Eres el motor de análisis de AEGIS, un sistema de moderación B2B diseñado para proteger a menores en plataformas de videojuegos.
 
 TU TAREA:
 Analizar mensajes de texto (chats) provenientes de videojuegos en tiempo real para detectar dos categorías de amenaza:

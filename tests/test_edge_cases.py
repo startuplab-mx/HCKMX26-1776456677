@@ -11,7 +11,7 @@ import time
 
 WS_BASE = sys.argv[1] if len(sys.argv) > 1 else "ws://localhost:8000"
 GAME = "test-suite"
-API_KEY = "guardiannode-dev-secret"
+API_KEY = "aegis-dev-secret"
 DELAY = 0.6  # seconds between messages — must be > LLM p95 latency
 
 # ── Test scenarios ─────────────────────────────────────────────────────────────

@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="GuardianNode API",
+    title="AEGIS API",
     description="Real-time child safety moderation for gaming platforms",
     version="1.0.0",
     lifespan=lifespan,
@@ -253,7 +253,7 @@ def get_stats():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "guardiannode-api"}
+    return {"status": "ok", "service": "aegis-api"}
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

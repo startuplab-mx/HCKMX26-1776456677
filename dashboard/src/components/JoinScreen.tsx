@@ -12,7 +12,7 @@ export function JoinScreen({ onJoin, onAdminMode }: Props) {
     serverUrl: 'wss://astride-graded-paralegal.ngrok-free.dev',
     roomId: 'sala-demo-unity',
     playerId: '',
-    gameId: 'GuardianNode Demo',
+    gameId: 'AEGIS Demo',
   })
 
   const set = (k: keyof ConnectionState) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -39,7 +39,7 @@ export function JoinScreen({ onJoin, onAdminMode }: Props) {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-green-500/20 border border-green-500/40 mb-4">
             <Shield className="text-green-400" size={32} />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">GuardianNode</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight">AEGIS</h1>
           <p className="text-gray-500 text-sm mt-1">Simulador de protección infantil</p>
         </div>
 

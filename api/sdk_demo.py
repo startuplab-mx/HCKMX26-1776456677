@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # Configuración
     sdk = AegisSDK(
         endpoint="http://localhost:8000",
-        api_key="guardiannode-dev-secret",
+        api_key="aegis-dev-secret",
         game_id="fortnite-clone-01"
     )
 

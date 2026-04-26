@@ -1,12 +1,12 @@
-from .client   import GuardianNodeClient, GuardianNodeAsyncClient
-from .realtime import GuardianNodeRealtime
+from .client   import AEGISClient, AEGISAsyncClient
+from .realtime import AEGISRealtime
 from .models   import AnalysisResult, AlertEvent, ChatMessage, MessagePayload, RiskLevel, Action
 
 __version__ = "1.0.0"
 __all__ = [
-    "GuardianNodeClient",
-    "GuardianNodeAsyncClient",
-    "GuardianNodeRealtime",
+    "AEGISClient",
+    "AEGISAsyncClient",
+    "AEGISRealtime",
     "AnalysisResult",
     "AlertEvent",
     "ChatMessage",

@@ -53,7 +53,7 @@ function MainView({ conn, onLeave }: { conn: ConnectionState; onLeave: () => voi
   const { requestPermission, notify } = useAlertNotifications()
   const { comments: tiktokComments, loading: tiktokLoading, analyzeComment, runTikTokDemo, stopTikTokDemo, demoRunning: tiktokDemoRunning } = useTikTokComments(
     conn.serverUrl,
-    'guardiannode-dev-secret'
+    'aegis-dev-secret'
   )
   const prevCount = useRef(0)
 
@@ -79,14 +79,14 @@ function MainView({ conn, onLeave }: { conn: ConnectionState; onLeave: () => voi
   useState(() => { connect() })
 
   const handleLeave = () => { disconnect(); onLeave() }
-  const handleRefreshStats = useCallback(() => fetchStats('guardiannode-dev-secret'), [fetchStats])
+  const handleRefreshStats = useCallback(() => fetchStats('aegis-dev-secret'), [fetchStats])
 
   return (
     <div className="h-screen flex flex-col bg-[#0a0a0f]">
       <div className="flex items-center justify-between px-4 py-2 bg-[#080810] border-b border-gray-800 shrink-0">
         <div className="flex items-center gap-2">
           <Shield size={16} className="text-green-400" />
-          <span className="text-sm font-bold text-white tracking-tight">GuardianNode</span>
+          <span className="text-sm font-bold text-white tracking-tight">AEGIS</span>
           <span className="text-xs text-gray-600 font-mono">·</span>
           <span className="text-xs text-gray-500 font-mono">{conn.roomId}</span>
           <span className="text-xs text-gray-600 font-mono">·</span>
@@ -107,7 +107,7 @@ function MainView({ conn, onLeave }: { conn: ConnectionState; onLeave: () => voi
               players={players}
               onSend={sendMessage}
               serverUrl={conn.serverUrl}
-              apiKey="guardiannode-dev-secret"
+              apiKey="aegis-dev-secret"
             />
         </div>
         <div className="flex-[2] min-w-0 border-l border-gray-800">

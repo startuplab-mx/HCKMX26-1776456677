@@ -114,7 +114,7 @@ export function useDemoMode(serverUrl: string, roomId: string): UseDemoMode {
 
       ws.onopen = () => {
         console.log('[demo] bot connected:', playerId)
-        ws.send(JSON.stringify({ type: 'join', room: roomId, player_id: playerId, game_id: 'GuardianNode Demo' }))
+        ws.send(JSON.stringify({ type: 'join', room: roomId, player_id: playerId, game_id: 'AEGIS Demo' }))
       }
       ws.onmessage = (e) => {
         try {

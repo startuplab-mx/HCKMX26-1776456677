@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.Networking;
 using System.Text;
 
-namespace GuardianNode
+namespace AEGIS
 {
     [Serializable]
     public class MessagePayload
@@ -31,7 +31,7 @@ namespace GuardianNode
     {
         [Header("Configuration")]
         public string apiEndpoint = "http://localhost:8888";
-        public string apiKey = "guardiannode-dev-secret";
+        public string apiKey = "aegis-dev-secret";
         public string gameId = "unity-game-01";
 
         public delegate void OnResultCallback(AnalysisResult result);
@@ -71,7 +71,7 @@ namespace GuardianNode
 
                 if (request.result != UnityWebRequest.Result.Success)
                 {
-                    Debug.LogError($"GuardianNode Error: {request.error}");
+                    Debug.LogError($"AEGIS Error: {request.error}");
                     callback?.Invoke(CreateFallback("CONNECTION_ERROR"));
                 }
                 else
@@ -83,7 +83,7 @@ namespace GuardianNode
                     }
                     catch (Exception e)
                     {
-                        Debug.LogError($"GuardianNode Parse Error: {e.Message}");
+                        Debug.LogError($"AEGIS Parse Error: {e.Message}");
                         callback?.Invoke(CreateFallback("PARSE_ERROR"));
                     }
                 }

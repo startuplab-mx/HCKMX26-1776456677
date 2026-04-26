@@ -1,4 +1,4 @@
-// GuardianNode Unity SDK v1.0
+// AEGIS Unity SDK v1.0
 // Requires: NativeWebSocket (https://github.com/endel/NativeWebSocket)
 // Add via Package Manager → Add from git URL:
 //   https://github.com/endel/NativeWebSocket.git#upm
@@ -15,7 +15,7 @@ using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.Events;
 
-namespace GuardianNode
+namespace AEGIS
 {
     // ── Models ────────────────────────────────────────────────────────────────
 
@@ -62,14 +62,14 @@ namespace GuardianNode
     // ── SDK Component ─────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Drop this component on any GameObject to add GuardianNode chat moderation.
+    /// Drop this component on any GameObject to add AEGIS chat moderation.
     /// Wire events in the Inspector or subscribe in code.
     /// </summary>
-    public class GuardianNodeSDK : MonoBehaviour
+    public class AEGISSDK : MonoBehaviour
     {
         [Header("Server")]
         public string serverUrl = "ws://localhost:8000";
-        public string apiKey    = "guardiannode-dev-secret";
+        public string apiKey    = "aegis-dev-secret";
 
         [Header("Room")]
         public string roomId   = "unity-room";
@@ -146,12 +146,12 @@ namespace GuardianNode
             }
         }
 
-        /// <summary>Send a chat message. GuardianNode analyzes it server-side.</summary>
+        /// <summary>Send a chat message. AEGIS analyzes it server-side.</summary>
         public void SendMessage(string text)
         {
             if (!_connected)
             {
-                Debug.LogWarning("[GuardianNode] Not connected");
+                Debug.LogWarning("[AEGIS] Not connected");
                 return;
             }
             var payload = new { type = "message", text };
@@ -180,7 +180,7 @@ namespace GuardianNode
                 case "joined":
                     _connected = true;
                     OnConnected?.Invoke();
-                    Debug.Log($"[GuardianNode] Connected to room '{roomId}' as '{playerId}'");
+                    Debug.Log($"[AEGIS] Connected to room '{roomId}' as '{playerId}'");
                     break;
 
                 case "player_joined":
@@ -236,7 +236,7 @@ namespace GuardianNode
                         from   = playerId,
                         text   = blocked.text,
                     });
-                    Debug.LogWarning($"[GuardianNode] Message BLOCKED: {blocked.reason}");
+                    Debug.LogWarning($"[AEGIS] Message BLOCKED: {blocked.reason}");
                     break;
 
                 case "alert":
@@ -251,7 +251,7 @@ namespace GuardianNode
                     break;
 
                 case "error":
-                    Debug.LogError($"[GuardianNode] Server error: {data["detail"]}");
+                    Debug.LogError($"[AEGIS] Server error: {data["detail"]}");
                     break;
             }
         }
@@ -259,7 +259,7 @@ namespace GuardianNode
         void HandleError(string error)
         {
             _connected = false;
-            Debug.LogError($"[GuardianNode] WebSocket error: {error}");
+            Debug.LogError($"[AEGIS] WebSocket error: {error}");
         }
 
         void HandleClose(WebSocketCloseCode code)
@@ -267,7 +267,7 @@ namespace GuardianNode
             _connected = false;
             _ws = null;
             OnDisconnected?.Invoke();
-            Debug.Log($"[GuardianNode] Disconnected ({code})");
+            Debug.Log($"[AEGIS] Disconnected ({code})");
 
             if (autoReconnect)
             {
@@ -299,7 +299,7 @@ namespace GuardianNode
     /// One-shot HTTP analysis. Use when you don't need a persistent room connection.
     /// Call from a coroutine or async method.
     /// </summary>
-    public static class GuardianNodeHttp
+    public static class AEGISHttp
     {
         public static async Task<AnalysisResult> Analyze(
             string serverUrl,
@@ -337,20 +337,20 @@ namespace GuardianNode
             return new AnalysisResult
             {
                 risk   = data["risk"]?.ToObject<bool>() ?? false,
-                level  = GuardianNodeSDK_ParseLevel(data["level"]?.ToString()),
+                level  = AEGISSDK_ParseLevel(data["level"]?.ToString()),
                 reason = data["reason"]?.ToString() ?? "",
-                action = GuardianNodeSDK_ParseAction(data["action"]?.ToString()),
+                action = AEGISSDK_ParseAction(data["action"]?.ToString()),
             };
         }
 
-        static RiskLevel GuardianNodeSDK_ParseLevel(string s) => s switch
+        static RiskLevel AEGISSDK_ParseLevel(string s) => s switch
         {
             "high"   => RiskLevel.high,
             "medium" => RiskLevel.medium,
             _        => RiskLevel.low,
         };
 
-        static RiskAction GuardianNodeSDK_ParseAction(string s) => s switch
+        static RiskAction AEGISSDK_ParseAction(string s) => s switch
         {
             "block" => RiskAction.block,
             "warn"  => RiskAction.warn,

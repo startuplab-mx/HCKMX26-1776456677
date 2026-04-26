@@ -5,11 +5,11 @@ import logging
 from typing import List, Dict, Optional, Any
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("GuardianNodeSDK")
+logger = logging.getLogger("AEGISSDK")
 
-class GuardianNodeSDK:
+class AEGISSDK:
     """
-    Official SDK for GuardianNode API.
+    Official SDK for AEGIS API.
     Provides real-time child safety moderation for gaming platforms.
     """
     
@@ -108,9 +108,9 @@ class GuardianNodeSDK:
 
 # Usage Example
 if __name__ == "__main__":
-    sdk = GuardianNodeSDK(
+    sdk = AEGISSDK(
         endpoint="http://localhost:8000",
-        api_key="guardiannode-dev-secret",
+        api_key="aegis-dev-secret",
         game_id="my-awesome-game"
     )
     

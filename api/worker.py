@@ -9,7 +9,7 @@ import json
 settings = get_settings()
 
 celery_app = Celery(
-    "guardiannode",
+    "aegis",
     broker=settings.celery_broker,
     backend=settings.celery_backend,
 )
@@ -88,4 +88,4 @@ def _publish_alert(log: AuditLog, result: dict):
         "reason": result["reason"],
         "action": result["action"],
     }
-    r.publish("guardiannode:alerts", json.dumps(alert))
+    r.publish("aegis:alerts", json.dumps(alert))

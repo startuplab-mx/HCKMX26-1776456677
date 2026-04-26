@@ -30,7 +30,7 @@ export function useAlertNotifications() {
     if (alert.level === 'high') {
       beep(880, 350, 0.35)
       if (permission.current === 'granted') {
-        new Notification('🚨 GuardianNode — Amenaza CRÍTICA', {
+        new Notification('🚨 AEGIS — Amenaza CRÍTICA', {
           body: `${alert.from}: "${alert.text?.slice(0, 60)}" — ${alert.reason}`,
           icon: '/vite.svg',
           tag: alert.id,

@@ -1,21 +1,21 @@
 """
-GuardianNode Python SDK — REST client.
+AEGIS Python SDK — REST client.
 
-Sync and async variants. Use GuardianNodeClient for regular code,
-GuardianNodeAsyncClient inside asyncio / FastAPI / etc.
+Sync and async variants. Use AEGISClient for regular code,
+AEGISAsyncClient inside asyncio / FastAPI / etc.
 """
 import httpx
 from typing import Optional
 from .models import AnalysisResult, MessagePayload
 
 
-class GuardianNodeClient:
+class AEGISClient:
     """Synchronous REST client."""
 
     def __init__(
         self,
         base_url: str = "http://localhost:8000",
-        api_key:  str = "guardiannode-dev-secret",
+        api_key:  str = "aegis-dev-secret",
         timeout:  float = 15.0,
     ):
         self._http = httpx.Client(
@@ -100,13 +100,13 @@ class GuardianNodeClient:
         self.close()
 
 
-class GuardianNodeAsyncClient:
+class AEGISAsyncClient:
     """Async REST client for use with asyncio / FastAPI."""
 
     def __init__(
         self,
         base_url: str = "http://localhost:8000",
-        api_key:  str = "guardiannode-dev-secret",
+        api_key:  str = "aegis-dev-secret",
         timeout:  float = 15.0,
     ):
         self._http = httpx.AsyncClient(
