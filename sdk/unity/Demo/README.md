@@ -6,10 +6,10 @@ Live chat between two Unity clients moderated by GuardianNode, monitored from th
 
 ```
 [Unity A] ─┐
-           ├─►  ws://localhost:8888/ws/game/sala-demo-unity   ──►  Moderation pipeline
+           ├─►  ws://localhost:8000/ws/game/sala-demo-unity   ──►  Moderation pipeline
 [Unity B] ─┘                                                          │
                                                                       ▼
-[Dashboard Supervisor] ◄── ws://localhost:8888/ws/game/sala-demo-unity/supervisor
+[Dashboard Supervisor] ◄── ws://localhost:8000/ws/game/sala-demo-unity/supervisor
 ```
 
 Server route definitions live in `api/game_room.py`:
@@ -29,7 +29,7 @@ API listens on `:8888`.
 1. Create empty GameObject `GuardianClient`.
 2. Add components: `GuardianNetwork`, `ChatManager`, `ChatCanvas`.
 3. Build a Canvas with `TMP_InputField` (input), `Button` (send), `ScrollRect` (messages list), prefab text element with `TextMeshProUGUI`.
-4. Wire references in inspector. Default `serverUrl=ws://localhost:8888`, `roomId=sala-demo-unity`.
+4. Wire references in inspector. Default `serverUrl=ws://localhost:8000`, `roomId=sala-demo-unity`.
 5. Build a standalone player. Run `.app` twice (or Editor + standalone) → two Unity instances join same room.
 
 ### 3. Dashboard supervisor

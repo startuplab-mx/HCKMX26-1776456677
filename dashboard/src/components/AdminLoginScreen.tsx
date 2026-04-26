@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ShieldAlert, Wifi, Hash, Lock } from 'lucide-react'
 
-const ADMIN_PASSWORD = 'guardiannode-admin'
+const ADMIN_PASSWORD = 'admin'
 
 interface AdminConn {
   serverUrl: string
@@ -15,8 +15,8 @@ interface Props {
 
 export function AdminLoginScreen({ onLogin, onBack }: Props) {
   const [form, setForm] = useState<AdminConn & { password: string }>({
-    serverUrl: `ws://${window.location.hostname}:8000`,
-    roomId: 'sala-demo',
+    serverUrl: 'wss://astride-graded-paralegal.ngrok-free.dev',
+    roomId: 'sala-demo-unity',
     password: '',
   })
   const [error, setError] = useState('')

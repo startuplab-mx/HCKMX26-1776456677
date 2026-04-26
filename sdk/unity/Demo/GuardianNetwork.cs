@@ -22,7 +22,7 @@ class TextPayload {
 
 public class GuardianNetwork : MonoBehaviour {
     [Header("Server")]
-    public string serverUrl = "ws://localhost:8888";
+    public string serverUrl = "ws://localhost:8000";
     public string roomId = "sala-demo-unity";
     public string gameId = "unity-demo";
     public string playerId = "";

@@ -9,7 +9,7 @@ interface Props {
 
 export function JoinScreen({ onJoin, onAdminMode }: Props) {
   const [form, setForm] = useState<ConnectionState>({
-    serverUrl: `ws://${window.location.hostname}:8000`,
+    serverUrl: 'wss://astride-graded-paralegal.ngrok-free.dev',
     roomId: 'sala-demo-unity',
     playerId: '',
     gameId: 'GuardianNode Demo',
