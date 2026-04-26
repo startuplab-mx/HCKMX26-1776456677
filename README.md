@@ -73,6 +73,9 @@ La moderación humana cuesta 60× más y tarda horas — demasiado tarde para pr
 
 ---
 
+## Video Demo Prototipo
+https://drive.google.com/file/d/1t48YxWEHveNZNQQ3gOoA56VQT1od-NjI/view?usp=sharing
+
 ## Documentación de herramientas de IA utilizadas
 
 ### 1. LLM — Análisis contextual de mensajes (Tier 2)
