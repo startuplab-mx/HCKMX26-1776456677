@@ -1,6 +1,10 @@
-import { ShieldAlert, Users, LogOut, Wifi, WifiOff, AlertTriangle, Shield, Ban } from 'lucide-react'
+import { ShieldAlert, Users, LogOut, Wifi, WifiOff, AlertTriangle, Shield, Ban, Play, Square, BarChart2 } from 'lucide-react'
 import { useSupervisorSocket } from '../hooks/useSupervisorSocket'
+import { useDemoMode } from '../hooks/useDemoMode'
+import { PatternTimeline } from './PatternTimeline'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import type { RiskLevel } from '../types'
+import { useMemo } from 'react'
 
 interface Props {
   serverUrl: string
@@ -20,12 +24,39 @@ const LEVEL_DOT: Record<RiskLevel, string> = {
   high: 'bg-red-400',
 }
 
+const CHART_COLORS: Record<RiskLevel, string> = {
+  low: '#22c55e',
+  medium: '#eab308',
+  high: '#ef4444',
+}
+
 export function SupervisorView({ serverUrl, roomId, onLeave }: Props) {
   const { messages, alerts, players, connected } = useSupervisorSocket(serverUrl, roomId)
+  const { isRunning, scenario, currentStep, totalSteps, startDemo, stopDemo } = useDemoMode(serverUrl, roomId)
 
   const blocked = messages.filter(m => m.blocked).length
   const warned = messages.filter(m => m.warned).length
   const total = messages.length
+
+  const riskChartData = useMemo(() => {
+    const counts = { low: 0, medium: 0, high: 0 }
+    messages.forEach(m => { counts[m.level]++ })
+    return [
+      { name: 'Bajo', value: counts.low, level: 'low' as RiskLevel },
+      { name: 'Medio', value: counts.medium, level: 'medium' as RiskLevel },
+      { name: 'Alto', value: counts.high, level: 'high' as RiskLevel },
+    ]
+  }, [messages])
+
+  const timelineData = useMemo(() => {
+    const buckets: Record<string, { low: number; medium: number; high: number }> = {}
+    messages.forEach(m => {
+      const key = m.ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      if (!buckets[key]) buckets[key] = { low: 0, medium: 0, high: 0 }
+      buckets[key][m.level]++
+    })
+    return Object.entries(buckets).slice(-12).map(([time, v]) => ({ time, ...v }))
+  }, [messages])
 
   return (
     <div className="h-screen flex flex-col bg-[#0a0a0f]">
@@ -42,13 +73,62 @@ export function SupervisorView({ serverUrl, roomId, onLeave }: Props) {
             : <span className="flex items-center gap-1 text-xs text-gray-500"><WifiOff size={10} /> Reconectando...</span>
           }
         </div>
-        <button
-          onClick={onLeave}
-          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1 rounded hover:bg-gray-800"
-        >
-          <LogOut size={12} /> Salir
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Demo controls */}
+          {isRunning ? (
+            <button
+              onClick={stopDemo}
+              className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-800/60 hover:bg-red-950/30 transition-colors"
+            >
+              <Square size={10} /> Detener demo
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => startDemo('normal')}
+                className="flex items-center gap-1.5 text-xs text-green-400 hover:text-green-300 px-2 py-1 rounded border border-green-800/60 hover:bg-green-950/30 transition-colors"
+              >
+                <Play size={10} /> Demo Normal
+              </button>
+              <button
+                onClick={() => startDemo('grooming')}
+                className="flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 px-2 py-1 rounded border border-purple-800/60 hover:bg-purple-950/30 transition-colors"
+              >
+                <Play size={10} /> Demo Grooming
+              </button>
+              <button
+                onClick={() => startDemo('recruitment')}
+                className="flex items-center gap-1.5 text-xs text-orange-400 hover:text-orange-300 px-2 py-1 rounded border border-orange-800/60 hover:bg-orange-950/30 transition-colors"
+              >
+                <Play size={10} /> Demo Reclutamiento
+              </button>
+            </>
+          )}
+          <button
+            onClick={onLeave}
+            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1 rounded hover:bg-gray-800"
+          >
+            <LogOut size={12} /> Salir
+          </button>
+        </div>
       </div>
+
+      {/* Demo progress bar */}
+      {isRunning && (
+        <div className="bg-gray-900/80 border-b border-gray-800 px-4 py-1.5 shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] text-gray-400 font-mono shrink-0">
+              {scenario === 'grooming' ? 'GROOMING' : 'RECLUTAMIENTO'} · paso {currentStep}/{totalSteps}
+            </span>
+            <div className="flex-1 h-1 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${scenario === 'grooming' ? 'bg-purple-500' : scenario === 'recruitment' ? 'bg-orange-500' : 'bg-green-500'}`}
+                style={{ width: `${(currentStep / totalSteps) * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left: message feed */}
@@ -63,7 +143,9 @@ export function SupervisorView({ serverUrl, roomId, onLeave }: Props) {
           {/* Feed */}
           <div className="flex-1 overflow-y-auto p-3 space-y-1 flex flex-col-reverse">
             {messages.length === 0 && (
-              <p className="text-gray-600 text-xs text-center py-8">Esperando mensajes...</p>
+              <p className="text-gray-600 text-xs text-center py-8">
+                {isRunning ? 'Iniciando demo...' : 'Esperando mensajes...'}
+              </p>
             )}
             {messages.map(msg => (
               <div key={msg.id} className={`rounded-lg px-3 py-2 border text-xs ${msg.blocked ? 'border-red-800/50 bg-red-950/20' : msg.warned ? 'border-yellow-800/40 bg-yellow-950/10' : 'border-gray-800/60 bg-gray-900/30'}`}>
@@ -91,8 +173,8 @@ export function SupervisorView({ serverUrl, roomId, onLeave }: Props) {
           </div>
         </div>
 
-        {/* Right: players + alerts */}
-        <div className="flex-[1] flex flex-col min-w-0 min-w-[220px]">
+        {/* Right: players + charts + alerts + timeline */}
+        <div className="flex-[1] flex flex-col min-w-0 min-w-[260px] overflow-y-auto">
           {/* Players */}
           <div className="border-b border-gray-800 p-3 shrink-0">
             <div className="flex items-center gap-1.5 mb-2">
@@ -109,6 +191,61 @@ export function SupervisorView({ serverUrl, roomId, onLeave }: Props) {
                 ))
             }
           </div>
+
+          {/* Risk distribution chart */}
+          {total > 0 && (
+            <div className="border-b border-gray-800 p-3 shrink-0">
+              <div className="flex items-center gap-1.5 mb-2">
+                <BarChart2 size={12} className="text-gray-500" />
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Distribución de riesgo</span>
+              </div>
+              <ResponsiveContainer width="100%" height={80}>
+                <BarChart data={riskChartData} margin={{ top: 0, right: 4, bottom: 0, left: -20 }}>
+                  <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: 6, fontSize: 10 }}
+                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                  />
+                  <Bar dataKey="value" radius={[3, 3, 0, 0]}>
+                    {riskChartData.map((entry) => (
+                      <Cell key={entry.level} fill={CHART_COLORS[entry.level]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Timeline chart */}
+          {timelineData.length > 1 && (
+            <div className="border-b border-gray-800 p-3 shrink-0">
+              <div className="flex items-center gap-1.5 mb-2">
+                <BarChart2 size={12} className="text-gray-500" />
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Actividad por tiempo</span>
+              </div>
+              <ResponsiveContainer width="100%" height={80}>
+                <BarChart data={timelineData} margin={{ top: 0, right: 4, bottom: 0, left: -20 }}>
+                  <XAxis dataKey="time" tick={{ fontSize: 8, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: 6, fontSize: 10 }}
+                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                  />
+                  <Bar dataKey="high" stackId="a" fill="#ef4444" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="medium" stackId="a" fill="#eab308" />
+                  <Bar dataKey="low" stackId="a" fill="#22c55e" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Pattern timeline during demo */}
+          {isRunning && scenario && scenario !== 'normal' && (
+            <div className="border-b border-gray-800 p-3 shrink-0">
+              <PatternTimeline scenario={scenario as 'grooming' | 'recruitment'} currentStep={currentStep} />
+            </div>
+          )}
 
           {/* Alerts */}
           <div className="flex-1 flex flex-col overflow-hidden p-3">

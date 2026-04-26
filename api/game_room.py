@@ -174,6 +174,7 @@ async def game_room_ws(websocket: WebSocket, room_id: str):
                         "detail": f"Moderación no disponible: {str(e)[:80]}",
                     })
                     # Still deliver message so session doesn't die
+                    ts = datetime.now(timezone.utc).isoformat()
                     await room.broadcast({
                         "type": "message",
                         "from": player_id,
@@ -182,6 +183,17 @@ async def game_room_ws(websocket: WebSocket, room_id: str):
                         "blocked": False,
                         "warned": False,
                         "reason": "",
+                    })
+                    await room.notify_supervisors({
+                        "type": "supervisor_message",
+                        "from": player_id,
+                        "text": text,
+                        "level": "low",
+                        "blocked": False,
+                        "warned": False,
+                        "risk": False,
+                        "reason": "",
+                        "ts": ts,
                     })
                     continue
 
@@ -249,7 +261,7 @@ async def game_room_ws(websocket: WebSocket, room_id: str):
                 "player_id": player_id,
                 "players": list(room.players.keys()),
             })
-        if not room.players:
+        if not room.players and not room.supervisor_listeners:
             _rooms.pop(room_id, None)
 
 

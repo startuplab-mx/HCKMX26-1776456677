@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Play, Square } from 'lucide-react'
 import type { TikTokComment } from '../types'
 
 const levelColor: Record<string, string> = {
@@ -11,9 +12,12 @@ interface Props {
   comments: TikTokComment[]
   loading: boolean
   onAnalyze: (text: string, user: string, likes: number) => void
+  onRunDemo: () => void
+  onStopDemo: () => void
+  demoRunning: boolean
 }
 
-export function TikTokPanel({ comments, loading, onAnalyze }: Props) {
+export function TikTokPanel({ comments, loading, onAnalyze, onRunDemo, onStopDemo, demoRunning }: Props) {
   const [input, setInput] = useState('')
   const [user, setUser] = useState('')
 
@@ -31,9 +35,27 @@ export function TikTokPanel({ comments, loading, onAnalyze }: Props) {
         <span className="text-[10px] font-bold tracking-widest uppercase font-mono text-pink-400">
           Comentarios · TikTok
         </span>
-        <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded border font-mono text-pink-400 bg-pink-950 border-pink-900">
-          REAL · /analyze/social
-        </span>
+        <div className="ml-auto flex items-center gap-1.5">
+          {demoRunning ? (
+            <button
+              onClick={onStopDemo}
+              className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border font-mono text-red-400 bg-red-950 border-red-800 hover:bg-red-900 transition-colors"
+            >
+              <Square size={8} /> STOP
+            </button>
+          ) : (
+            <button
+              onClick={onRunDemo}
+              disabled={loading}
+              className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border font-mono text-pink-400 bg-pink-950 border-pink-900 hover:bg-pink-900/60 disabled:opacity-30 transition-colors"
+            >
+              <Play size={8} /> DEMO
+            </button>
+          )}
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border font-mono text-pink-400 bg-pink-950 border-pink-900">
+            REAL · /analyze/social
+          </span>
+        </div>
       </div>
 
       <div className="flex flex-col gap-1.5 p-2 flex-1 overflow-y-auto">

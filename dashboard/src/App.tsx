@@ -51,7 +51,7 @@ export default function App() {
 function MainView({ conn, onLeave }: { conn: ConnectionState; onLeave: () => void }) {
   const { alerts, stats, fetchStats, addAlert } = useDashboardSocket(conn.serverUrl, conn.roomId)
   const { requestPermission, notify } = useAlertNotifications()
-  const { comments: tiktokComments, loading: tiktokLoading, analyzeComment } = useTikTokComments(
+  const { comments: tiktokComments, loading: tiktokLoading, analyzeComment, runTikTokDemo, stopTikTokDemo, demoRunning: tiktokDemoRunning } = useTikTokComments(
     conn.serverUrl,
     'guardiannode-dev-secret'
   )
@@ -112,6 +112,9 @@ function MainView({ conn, onLeave }: { conn: ConnectionState; onLeave: () => voi
             tiktokComments={tiktokComments}
             tiktokLoading={tiktokLoading}
             onAnalyzeTikTok={analyzeComment}
+            onRunTikTokDemo={runTikTokDemo}
+            onStopTikTokDemo={stopTikTokDemo}
+            tiktokDemoRunning={tiktokDemoRunning}
           />
         </div>
       </div>

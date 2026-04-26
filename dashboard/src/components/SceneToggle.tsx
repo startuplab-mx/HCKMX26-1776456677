@@ -10,6 +10,9 @@ interface Props {
   tiktokComments: TikTokComment[]
   tiktokLoading: boolean
   onAnalyzeTikTok: (text: string, user: string, likes: number) => void
+  onRunTikTokDemo: () => void
+  onStopTikTokDemo: () => void
+  tiktokDemoRunning: boolean
 }
 
 const levelColor: Record<string, string> = {
@@ -18,7 +21,7 @@ const levelColor: Record<string, string> = {
   high:   'text-red-400 bg-red-950 border-red-900',
 }
 
-export function SceneToggle({ messages, alerts, tiktokComments, tiktokLoading, onAnalyzeTikTok }: Props) {
+export function SceneToggle({ messages, alerts, tiktokComments, tiktokLoading, onAnalyzeTikTok, onRunTikTokDemo, onStopTikTokDemo, tiktokDemoRunning }: Props) {
   const [scene, setScene] = useState<Scene>('game')
 
   return (
@@ -86,6 +89,9 @@ export function SceneToggle({ messages, alerts, tiktokComments, tiktokLoading, o
             comments={tiktokComments}
             loading={tiktokLoading}
             onAnalyze={onAnalyzeTikTok}
+            onRunDemo={onRunTikTokDemo}
+            onStopDemo={onStopTikTokDemo}
+            demoRunning={tiktokDemoRunning}
           />
         )}
       </div>

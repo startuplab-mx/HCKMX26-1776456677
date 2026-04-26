@@ -12,6 +12,9 @@ interface Props {
   tiktokComments: TikTokComment[]
   tiktokLoading: boolean
   onAnalyzeTikTok: (text: string, user: string, likes: number) => void
+  onRunTikTokDemo: () => void
+  onStopTikTokDemo: () => void
+  tiktokDemoRunning: boolean
 }
 
 const LEVEL_CONFIG: Record<RiskLevel, { color: string; bg: string; border: string; icon: React.ReactNode; label: string }> = {
@@ -20,7 +23,7 @@ const LEVEL_CONFIG: Record<RiskLevel, { color: string; bg: string; border: strin
   low:    { color: 'text-gray-400',   bg: 'bg-gray-900',      border: 'border-gray-700',   icon: <Shield size={13} />,     label: 'BAJO' },
 }
 
-export function DashboardPanel({ alerts, stats, onRefreshStats, messages, tiktokComments, tiktokLoading, onAnalyzeTikTok }: Props) {
+export function DashboardPanel({ alerts, stats, onRefreshStats, messages, tiktokComments, tiktokLoading, onAnalyzeTikTok, onRunTikTokDemo, onStopTikTokDemo, tiktokDemoRunning }: Props) {
   useEffect(() => {
     onRefreshStats()
     const id = setInterval(onRefreshStats, 10000)
@@ -85,6 +88,9 @@ export function DashboardPanel({ alerts, stats, onRefreshStats, messages, tiktok
           tiktokComments={tiktokComments}
           tiktokLoading={tiktokLoading}
           onAnalyzeTikTok={onAnalyzeTikTok}
+          onRunTikTokDemo={onRunTikTokDemo}
+          onStopTikTokDemo={onStopTikTokDemo}
+          tiktokDemoRunning={tiktokDemoRunning}
         />
       </div>
 
