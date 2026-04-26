@@ -1,6 +1,12 @@
 # AEGIS
 
-Sistema de moderación B2B en tiempo real para detectar reclutamiento criminal de menores en chats de videojuegos.
+Sistema de moderación B2B en tiempo real para detectar reclutamiento criminal de menores en chats de videojuegos o en comentarios publicos de redes sociales.
+
+## Problema que estamos resolviendo
+
+La total indefensión de los menores ante la digitalización del reclutamiento del crimen organizado en México, sumada a la ineficacia de las herramientas de moderación tradicionales para entender el contexto criminal.
+
+## Técnologias y herramientas utilizadas
 
 ## Arquitectura
 
@@ -24,7 +30,7 @@ start-local.sh  Levanta todo sin Docker (requiere brew)
 docker-compose.yml
 ```
 
-## Requisitos
+## Requisitos e instrucciones para correr el proyecto
 
 - Docker Desktop **o** Redis (`brew install redis`)
 - Node.js 18+
@@ -99,3 +105,19 @@ REDIS_URL=redis://redis:6379/0   # Docker: redis://redis:6379/0 | Local: redis:/
 | `GET` | `/stats` | Estadísticas para dashboard |
 | `WS` | `/ws/game/{sala}` | Chat del simulador |
 | `WS` | `/ws/game/{sala}/dashboard` | Alertas en tiempo real |
+
+## Demo del prototipo
+
+
+
+## Documentación explícita de todas las herramientas de IA utilizadas
+
+
+
+## Integrantes del equipo
+
+Sebastian de Jesus Cruz Cruz
+Santiago Heriberto León Herrera
+Alejandro Rodríguez Britto
+Eduardo Arteaga Camacho
+José Emilio Lopéz Flores
