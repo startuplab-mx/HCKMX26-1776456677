@@ -112,7 +112,7 @@ REDIS_URL=redis://redis:6379/0   # Docker: redis://redis:6379/0 | Local: redis:/
 
 ## Documentación explícita de todas las herramientas de IA utilizadas
 
-
+Utilizamos Claude y Gemini para desarrollo de código y debuggear.
 
 ## Integrantes del equipo
 
